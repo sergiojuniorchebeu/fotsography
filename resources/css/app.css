@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+
+@source '../views';
+@source '../js';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+    --color-brand-50: #fdf8ef;
+    --color-brand-100: #f9ecd5;
+    --color-brand-200: #f2d6a9;
+    --color-brand-300: #e9b973;
+    --color-brand-400: #df9743;
+    --color-brand-500: #d77d26;
+    --color-brand-600: #c1621c;
+    --color-brand-700: #a04a1a;
+    --color-brand-800: #823c1c;
+    --color-brand-900: #6a321a;
+    --color-ink: #17130f;
+}
+
+@layer base {
+    body {
+        @apply bg-stone-50 text-stone-900;
+    }
+    input[type='date']::-webkit-calendar-picker-indicator {
+        opacity: 0.6;
+    }
+}
+
+.tabular {
+    font-variant-numeric: tabular-nums;
+}

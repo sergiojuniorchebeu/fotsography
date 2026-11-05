@@ -1,0 +1,3 @@
+# sudo crontab -u www-data -e   puis coller la ligne ci-dessous.
+# Pénalités (toutes les heures), rappels (8 h), sauvegardes (2 h), contrôle des sauvegardes (9 h).
+* * * * * cd /var/www/fotsography && php artisan schedule:run >> /dev/null 2>&1
