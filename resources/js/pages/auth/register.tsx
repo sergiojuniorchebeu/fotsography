@@ -2,8 +2,8 @@ import { useForm } from '@inertiajs/react';
 import { Button, Field, Input, PasswordInput } from '@/components/ui';
 import GuestLayout from '@/layouts/guest-layout';
 
-export default function Register({ tokenRequired, token }: { tokenRequired: boolean; token: string | null }) {
-    const form = useForm({ setup_token: token ?? '', name: '', email: '', phone: '', password: '', password_confirmation: '' });
+export default function Register() {
+    const form = useForm({ name: '', email: '', phone: '', password: '', password_confirmation: '' });
 
     return (
         <GuestLayout title="Premier lancement" subtitle="Créez le compte administrateur du studio. Les autres comptes seront créés depuis l'espace Équipe.">
@@ -14,11 +14,6 @@ export default function Register({ tokenRequired, token }: { tokenRequired: bool
                     form.post('/register');
                 }}
             >
-                {tokenRequired && (
-                    <Field label="Code d'installation" error={form.errors.setup_token} hint="La valeur SETUP_TOKEN du fichier .env du serveur.">
-                        <PasswordInput autoComplete="off" value={form.data.setup_token} onChange={(e) => form.setData('setup_token', e.target.value)} />
-                    </Field>
-                )}
                 <Field label="Nom complet" error={form.errors.name}>
                     <Input autoFocus value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} />
                 </Field>

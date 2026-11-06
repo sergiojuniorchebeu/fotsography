@@ -1,9 +1,6 @@
 <?php
 
 return [
-    // Secret required to create the first (admin) account on a fresh production install.
-    'setup_token' => env('SETUP_TOKEN'),
-
     // Shared hosting without a process manager: let the scheduler drain the queue every minute.
     'queue_via_scheduler' => (bool) env('QUEUE_VIA_SCHEDULER', false),
 

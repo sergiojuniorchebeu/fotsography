@@ -62,39 +62,18 @@ class AuthController extends Controller
         return redirect()->intended('/');
     }
 
-    public function showRegister(Request $request): Response|RedirectResponse
+    public function showRegister(): Response|RedirectResponse
     {
         if (User::withTrashed()->exists()) {
             return redirect('/login');
         }
 
-        return Inertia::render('auth/register', [
-            'tokenRequired' => self::setupTokenRequired(),
-            'token' => $request->query('token'),
-        ]);
-    }
-
-    /**
-     * In production, the very first account (which becomes admin) can only be created with the
-     * SETUP_TOKEN from .env, so nobody who stumbles on a fresh server first can take it over.
-     */
-    public static function setupTokenRequired(): bool
-    {
-        return app()->isProduction() || filled(config('studio.setup_token'));
+        return Inertia::render('auth/register');
     }
 
     public function register(Request $request): RedirectResponse
     {
         abort_if(User::withTrashed()->exists(), 403, 'L\'inscription est fermée.');
-
-        if (self::setupTokenRequired()) {
-            $expected = (string) config('studio.setup_token');
-            if ($expected === '' || ! hash_equals($expected, (string) $request->input('setup_token'))) {
-                throw ValidationException::withMessages(['setup_token' => $expected === ''
-                    ? 'Inscription désactivée : définissez SETUP_TOKEN dans .env ou utilisez « php artisan studio:create-admin ».'
-                    : 'Code d\'installation incorrect.']);
-            }
-        }
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:users,name'],
