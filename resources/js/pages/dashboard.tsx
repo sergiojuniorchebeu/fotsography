@@ -2,7 +2,7 @@ import { Link } from '@inertiajs/react';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, Clock, Coins, Gavel, Hourglass, Link2, PiggyBank, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import { MonthlyChart, StatusBars } from '@/components/finance-chart';
 import { TaskList } from '@/components/task-list';
-import { Badge, ButtonLink, Card, Empty, PageHeader, Progress, Stat, Table, Td, Th, projectTone } from '@/components/ui';
+import { Badge, ButtonLink, Card, Empty, HowItWorks, PageHeader, Progress, Stat, Table, Td, Th, projectTone } from '@/components/ui';
 import AppLayout from '@/layouts/app-layout';
 import { date, dateTime, fcfa } from '@/lib/format';
 import { workloadLabel } from '@/components/task-form';
@@ -11,7 +11,7 @@ import type { ClientPayment, FinanceSummary, Member, MemberStat, MonthPoint, Pro
 type Counts = { todo: number; in_progress?: number; waiting: number; review: number; done: number; late: number };
 
 type StaffProps = {
-    role: 'admin' | 'assistant';
+    role: 'admin' | 'super_admin' | 'assistant';
     taskCounts: Counts;
     workload: Member[];
     toReview: Task[];
@@ -22,7 +22,7 @@ type StaffProps = {
     monthly?: MonthPoint[];
     members?: MemberStat[];
     recentPayments?: ClientPayment[];
-    setup?: { key: string; label: string; href: string; done: boolean }[];
+    setup?: { key: string; label: string; text: string; href: string; done: boolean }[];
 };
 
 type MemberProps = {
@@ -74,21 +74,28 @@ function ProjectsProgress({ projects, admin }: { projects: Project[]; admin: boo
 
 function SetupChecklist({ steps }: { steps: NonNullable<StaffProps['setup']> }) {
     const done = steps.filter((s) => s.done).length;
+    const next = steps.find((s) => !s.done);
     return (
-        <Card title={`Bien démarrer — ${done}/${steps.length}`} className="mb-6 ring-brand-200">
+        <Card title={`Bien démarrer : ${done} étape(s) sur ${steps.length}`} className="mb-6 ring-brand-200">
             <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-stone-100">
                 <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${(done / steps.length) * 100}%` }} />
             </div>
-            <ol className="space-y-2">
-                {steps.map((step, i) => (
-                    <li key={step.key}>
-                        <Link href={step.href} className={`flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm ${step.done ? 'text-stone-400' : 'text-stone-800 hover:bg-stone-50'}`}>
-                            {step.done ? <CheckCircle2 className="size-5 shrink-0 text-emerald-600" /> : <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-stone-300 text-[11px] font-semibold text-stone-500">{i + 1}</span>}
-                            <span className={step.done ? 'line-through' : 'font-medium'}>{step.label}</span>
-                            {!step.done && <span className="ml-auto text-xs text-brand-700">Commencer →</span>}
-                        </Link>
-                    </li>
-                ))}
+            <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {steps.map((step, i) => {
+                    const current = step === next;
+                    return (
+                        <li key={step.key}>
+                            <Link href={step.href} className={`flex h-full gap-3 rounded-xl p-3 ring-1 transition ${step.done ? 'ring-stone-100' : current ? 'bg-brand-50/70 ring-brand-300 hover:ring-brand-400' : 'ring-stone-200 hover:bg-stone-50'}`}>
+                                {step.done ? <CheckCircle2 className="size-5 shrink-0 text-emerald-600" /> : <span className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${current ? 'bg-brand-500 text-white' : 'border border-stone-300 text-stone-500'}`}>{i + 1}</span>}
+                                <span className="min-w-0">
+                                    <span className={`block text-sm ${step.done ? 'text-stone-400 line-through' : 'font-medium text-stone-900'}`}>{step.label}</span>
+                                    {!step.done && <span className="mt-0.5 block text-xs text-stone-500">{step.text}</span>}
+                                    {current && <span className="mt-1.5 block text-xs font-medium text-brand-700">C'est la prochaine étape →</span>}
+                                </span>
+                            </Link>
+                        </li>
+                    );
+                })}
             </ol>
         </Card>
     );
@@ -126,7 +133,7 @@ function TeamLoad({ members }: { members: Member[] }) {
 }
 
 function StaffDashboard(props: StaffProps) {
-    const admin = props.role === 'admin';
+    const admin = props.role === 'admin' || props.role === 'super_admin';
     const s = props.summary;
 
     return (
@@ -245,6 +252,16 @@ function MemberDashboard({ myTasks, taskCounts, earnings }: MemberProps) {
     return (
         <AppLayout title="Tableau de bord">
             <PageHeader title="Mon espace" subtitle="Vos tâches, vos échéances et vos gains." />
+            <HowItWorks
+                id="member-start"
+                title="Bienvenue ! Voici comment ça marche"
+                steps={[
+                    { title: 'On vous confie une tâche', text: 'Vous recevez une notification. Ouvrez la tâche et lisez les consignes et la date.' },
+                    { title: 'Commencez', text: 'Appuyez sur « Commencer » quand vous vous y mettez : l\'admin sait que c\'est en cours.' },
+                    { title: 'Livrez avant la date', text: 'Collez le lien de vos fichiers (Drive, WeTransfer…) ou écrivez un message, puis « Livrer ».' },
+                    { title: 'Validé = payé', text: 'L\'admin vérifie et valide. Vous retrouvez ce qui vous est dû dans « Mes gains ».' },
+                ]}
+            />
             <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Stat label="À faire" value={taskCounts.todo} hint={taskCounts.waiting ? `+ ${taskCounts.waiting} en attente de l'étape d'avant` : undefined} icon={<Clock className="size-4" />} />
                 <Stat label="En retard" value={taskCounts.late} tone={taskCounts.late ? 'negative' : undefined} icon={<AlertTriangle className="size-4" />} />
@@ -270,7 +287,7 @@ function MemberDashboard({ myTasks, taskCounts, earnings }: MemberProps) {
 }
 
 export default function Dashboard(props: StaffProps | MemberProps) {
-    if (props.role === 'admin' || props.role === 'assistant') {
+    if (props.role === 'admin' || props.role === 'super_admin' || props.role === 'assistant') {
         return <StaffDashboard {...(props as StaffProps)} />;
     }
     return <MemberDashboard {...(props as MemberProps)} />;

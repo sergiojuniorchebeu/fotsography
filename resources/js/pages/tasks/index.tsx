@@ -2,7 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { ClipboardList } from 'lucide-react';
 import { DueChip } from '@/components/task-list';
 import { workloadLabel } from '@/components/task-form';
-import { Card, Empty, PageHeader, Pagination, Select, Table, Td, TaskStatusBadge, Th } from '@/components/ui';
+import { Card, Empty, HowItWorks, PageHeader, Pagination, Select, Table, Td, TaskStatusBadge, Th } from '@/components/ui';
 import AppLayout from '@/layouts/app-layout';
 import { fcfa } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -62,6 +62,19 @@ export default function TasksIndex({ tasks, view, counts, filters, workload, pro
     return (
         <AppLayout title={staff ? 'Tâches' : 'Mes tâches'}>
             <PageHeader title={staff ? 'Tâches' : 'Mes tâches'} subtitle={staff ? 'Qui fait quoi, pour quand. Cliquez sur une personne pour voir ses tâches.' : 'Commencez une tâche, puis livrez votre travail avant la date.'} />
+
+            <HowItWorks
+                id={staff ? 'tasks-staff' : 'tasks-member'}
+                title="Le parcours d'une tâche"
+                steps={[
+                    { title: 'À faire', text: staff ? 'Vous créez la tâche depuis le projet. La personne reçoit une notification.' : 'Une tâche vous est confiée : vous recevez une notification. Lisez les consignes.' },
+                    { title: 'En cours', text: staff ? 'La personne appuie sur « Commencer » : vous savez qu\'elle est dessus.' : 'Appuyez sur « Commencer » quand vous vous y mettez.' },
+                    { title: 'À vérifier', text: staff ? 'Elle livre son travail (lien Drive, WeTransfer…). Ouvrez-le, puis validez ou renvoyez avec un commentaire.' : 'Livrez avant la date : collez le lien de vos fichiers (Drive, WeTransfer…) ou écrivez un message.' },
+                    { title: 'Terminée', text: staff ? 'Validée et verrouillée. L\'étape suivante, s\'il y en a une, démarre et la personne est prévenue.' : 'L\'admin valide : la tâche peut vous être payée. Si elle est renvoyée, corrigez puis relivrez.' },
+                ]}
+            >
+                Une tâche « En attente » attend la fin d'une autre tâche : pas de pénalité pendant ce temps. Après la date de livraison, des pénalités de retard s'appliquent.
+            </HowItWorks>
 
             {staff && workload.length > 0 && <WorkloadStrip members={workload} active={filters.member} onPick={(id) => apply({ member: id })} />}
 

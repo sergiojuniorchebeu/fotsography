@@ -61,6 +61,7 @@ Route::middleware(['auth', 'ready'])->group(function () {
         Route::put('/activities/{activity}', [ActivityController::class, 'update']);
         Route::delete('/activities/{activity}', [ActivityController::class, 'destroy']);
         Route::post('/activities/{activity}/tasks', [TaskController::class, 'store']);
+        Route::post('/projects/{project}/tasks', [TaskController::class, 'storeInProject']);
         Route::post('/projects/{project}/apply-template', [ProjectTemplateController::class, 'apply']);
         Route::put('/tasks/{task}', [TaskController::class, 'update']);
         Route::delete('/tasks/{task}', [TaskController::class, 'destroy']);
@@ -101,11 +102,13 @@ Route::middleware(['auth', 'ready'])->group(function () {
         Route::put('/team/{user}', [TeamController::class, 'update']);
         Route::post('/team/{user}/toggle', [TeamController::class, 'toggle']);
         Route::post('/team/{user}/reset-password', [TeamController::class, 'resetPassword']);
+        Route::post('/team/{user}/send-access', [TeamController::class, 'sendAccess'])->middleware('throttle:10,1');
 
         Route::get('/templates', [ProjectTemplateController::class, 'index']);
         Route::post('/templates', [ProjectTemplateController::class, 'store']);
         Route::put('/templates/{template}', [ProjectTemplateController::class, 'update']);
         Route::delete('/templates/{template}', [ProjectTemplateController::class, 'destroy']);
+        Route::put('/projects/{project}/invoice-lines', [ProjectController::class, 'invoiceLines']);
         Route::post('/projects/{project}/save-as-template', [ProjectTemplateController::class, 'fromProject']);
 
         Route::get('/settings', [SettingsController::class, 'edit']);

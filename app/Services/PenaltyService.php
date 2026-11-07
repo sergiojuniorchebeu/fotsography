@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\Role;
 use App\Models\ActivityLog;
 use App\Models\Penalty;
 use App\Models\PenaltyRefund;
@@ -59,7 +58,7 @@ class PenaltyService
             return 0;
         }
         $task->loadMissing('assignee');
-        if (! $task->assignee || $task->assignee->role === Role::Admin) {
+        if (! $task->assignee || $task->assignee->isAdmin()) {
             return 0;
         }
 

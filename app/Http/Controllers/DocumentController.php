@@ -13,9 +13,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class DocumentController extends Controller
 {
-    public function clientReceipt(ClientPayment $payment): Response
+    public function clientReceipt(Request $request, ClientPayment $payment): Response
     {
         $payment->load(['project', 'client', 'recorder']);
+        $recordedBy = $payment->recorder?->nameFor($request->user());
         $project = $payment->project;
         $paidBefore = (int) $project->payments()->where('id', '<', $payment->id)->sum('amount');
 
@@ -24,6 +25,7 @@ class DocumentController extends Controller
             'project' => $project,
             'paidToDate' => $paidBefore + $payment->amount,
             'remaining' => max(0, $project->total_amount - $paidBefore - $payment->amount),
+            'recordedBy' => $recordedBy,
         ], "recu-{$payment->receipt_number}.pdf");
     }
 
@@ -33,7 +35,7 @@ class DocumentController extends Controller
         abort_unless($viewer->isAdmin() || $payment->user_id === $viewer->id, 403);
         $payment->load(['task', 'project', 'user', 'payer']);
 
-        return $this->pdf('pdf.member-receipt', ['payment' => $payment], "recu-{$payment->receipt_number}.pdf");
+        return $this->pdf('pdf.member-receipt', ['payment' => $payment, 'paidBy' => $payment->payer?->nameFor($viewer)], "recu-{$payment->receipt_number}.pdf");
     }
 
     public function refundReceipt(Request $request, PenaltyRefund $refund): Response
@@ -42,7 +44,7 @@ class DocumentController extends Controller
         abort_unless($viewer->isAdmin() || $refund->user_id === $viewer->id, 403);
         $refund->load(['user', 'task', 'project', 'refunder']);
 
-        return $this->pdf('pdf.penalty-refund', ['refund' => $refund], "remboursement-{$refund->receipt_number}.pdf");
+        return $this->pdf('pdf.penalty-refund', ['refund' => $refund, 'refundedBy' => $refund->refunder?->nameFor($viewer)], "remboursement-{$refund->receipt_number}.pdf");
     }
 
     public function invoice(Invoice $invoice): Response

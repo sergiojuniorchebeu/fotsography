@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Eye, EyeOff, Loader2, X } from 'lucide-react';
+import { ChevronDown, Eye, EyeOff, Lightbulb, Loader2, X } from 'lucide-react';
 import type {
     ButtonHTMLAttributes,
     InputHTMLAttributes,
@@ -732,5 +732,56 @@ export function Checkbox({
             />
             {label}
         </label>
+    );
+}
+
+/**
+ * "Comment ça marche ?": a short numbered explanation at the top of a page.
+ * Open the first time, then remembers (per browser) that the person closed it.
+ */
+export function HowItWorks({ id, title = 'Comment ça marche ?', steps, children }: { id: string; title?: string; steps: { title: string; text: ReactNode }[]; children?: ReactNode }) {
+    const key = `howto:${id}`;
+    const [open, setOpen] = useState(() => {
+        try {
+            return window.localStorage.getItem(key) !== 'closed';
+        } catch {
+            return true;
+        }
+    });
+    const toggle = () => {
+        setOpen((v) => {
+            try {
+                window.localStorage.setItem(key, v ? 'closed' : 'open');
+            } catch {
+                // private mode: just toggle for this visit
+            }
+            return !v;
+        });
+    };
+    return (
+        <section className="mb-6 rounded-2xl bg-brand-50/60 ring-1 ring-brand-200/70">
+            <button type="button" onClick={toggle} aria-expanded={open} className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-stone-800">
+                <Lightbulb className="size-4 shrink-0 text-brand-600" />
+                <span className="flex-1">{title}</span>
+                <span className="text-xs font-normal text-stone-500">{open ? 'Masquer' : 'Afficher'}</span>
+                <ChevronDown className={cn('size-4 shrink-0 text-stone-400 transition', open && 'rotate-180')} />
+            </button>
+            {open && (
+                <div className="px-4 pb-4">
+                    <ol className={cn('grid gap-3', steps.length >= 4 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3')}>
+                        {steps.map((step, i) => (
+                            <li key={i} className="flex gap-3 rounded-xl bg-white/80 p-3 ring-1 ring-brand-100">
+                                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-semibold text-white">{i + 1}</span>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium text-stone-900">{step.title}</p>
+                                    <p className="mt-0.5 text-xs leading-relaxed text-stone-600">{step.text}</p>
+                                </div>
+                            </li>
+                        ))}
+                    </ol>
+                    {children && <div className="mt-3 text-xs text-stone-600">{children}</div>}
+                </div>
+            )}
+        </section>
     );
 }

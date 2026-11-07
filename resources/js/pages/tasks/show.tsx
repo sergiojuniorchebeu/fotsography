@@ -254,7 +254,7 @@ const reviewMeta = {
     returned: { label: 'Renvoyée', tone: 'red' as const, icon: RotateCcw },
 };
 
-export default function TaskShow({ task, methods, penaltyDebt, members, siblings }: { task: Task; methods: Option[]; penaltyDebt: number | null; members: Member[]; siblings: SiblingTask[] }) {
+export default function TaskShow({ task, methods, penaltyDebt, members, siblings, dateBounds }: { task: Task; methods: Option[]; penaltyDebt: number | null; members: Member[]; siblings: SiblingTask[]; dateBounds: { start: string; end: string } }) {
     const user = usePage().props.auth.user!;
     const isOwner = task.assignee?.id === user.id;
     const [edit, setEdit] = useState(false);
@@ -337,7 +337,7 @@ export default function TaskShow({ task, methods, penaltyDebt, members, siblings
                 <div className="space-y-6">
                     {showMoney && (
                         <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
-                            <Stat label="Rémunération" value={fcfa(task.member_fee)} hint={user.is_admin && task.client_share !== undefined ? `Part client : ${fcfa(task.client_share)}` : undefined} />
+                            <Stat label="Rémunération" value={fcfa(task.member_fee)} hint={user.is_admin && task.client_share ? `Sur la facture client : ${fcfa(task.client_share)}` : undefined} />
                             <Stat label="Déjà versé (brut)" value={fcfa(task.paid_gross)} hint={`Reste dû : ${fcfa(task.remaining_fee)}`} tone={task.remaining_fee ? 'warning' : 'positive'} />
                         </div>
                     )}
@@ -396,7 +396,7 @@ export default function TaskShow({ task, methods, penaltyDebt, members, siblings
                 </div>
             </div>
 
-            {user.is_staff && <TaskFormModal key={`edit-${edit}`} open={edit} onClose={() => setEdit(false)} task={task} members={members} siblings={siblings} />}
+            {user.is_staff && <TaskFormModal key={`edit-${edit}`} open={edit} onClose={() => setEdit(false)} task={task} members={members} siblings={siblings} minDate={dateBounds.start} maxDate={dateBounds.end} />}
             {cancel && <CancelPenaltyModal {...cancel} debt={penaltyDebt ?? 0} methods={methods} onClose={() => setCancel(null)} />}
             {user.is_admin && pay > 0 && <PayModal key={pay} open onClose={() => setPay(0)} task={task} methods={methods} debt={penaltyDebt ?? 0} />}
         </AppLayout>

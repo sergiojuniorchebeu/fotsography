@@ -48,7 +48,7 @@ class Penalty extends Model
     }
 
     /** @return array<string, mixed> */
-    public function toRow(): array
+    public function toRow(?User $viewer = null): array
     {
         return [
             'id' => $this->id,
@@ -58,7 +58,7 @@ class Penalty extends Model
             'accrued_at' => $this->accrued_at->toIso8601String(),
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
             'cancel_reason' => $this->cancel_reason,
-            'cancelled_by' => $this->canceller?->name,
+            'cancelled_by' => $this->canceller?->nameFor($viewer),
         ];
     }
 }

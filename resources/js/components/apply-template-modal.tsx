@@ -16,7 +16,7 @@ const rowsFor = (tpl?: TemplatePreview): Row[] =>
  * Pick a template, then check who does what and when before creating the tasks.
  * People are pre-selected by role, least busy first; dates come from the event / delivery dates.
  */
-export function ApplyTemplateModal({ open, onClose, projectId, templates, members, initialId, isAdmin, hasTasks, shareLeft }: {
+export function ApplyTemplateModal({ open, onClose, projectId, templates, members, initialId, isAdmin, hasTasks, shareLeft, startDate, deliveryDate }: {
     open: boolean;
     onClose: () => void;
     projectId: number;
@@ -26,6 +26,8 @@ export function ApplyTemplateModal({ open, onClose, projectId, templates, member
     isAdmin: boolean;
     hasTasks: boolean;
     shareLeft?: number | null;
+    startDate: string;
+    deliveryDate: string;
 }) {
     const first = templates.find((t) => t.id === initialId) ?? templates[0];
     const form = useForm<{ template_id: number | ''; rows: Row[]; skip_shares: boolean }>({ template_id: first?.id ?? '', rows: rowsFor(first), skip_shares: false });
@@ -122,7 +124,7 @@ export function ApplyTemplateModal({ open, onClose, projectId, templates, member
                                                         </Select>
                                                         {err[`rows.${t.key}.assigned_to`] && <p className="mt-1 text-xs text-red-600">{err[`rows.${t.key}.assigned_to`]}</p>}
                                                     </div>
-                                                    <Input type="date" aria-label="Date de livraison" value={r.due_date} onChange={(e) => setRow(i, { due_date: e.target.value })} />
+                                                    <Input type="date" min={startDate} max={deliveryDate} aria-label="Date de livraison" value={r.due_date} onChange={(e) => setRow(i, { due_date: e.target.value })} />
                                                 </>
                                             )}
                                         </li>

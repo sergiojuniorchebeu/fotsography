@@ -27,7 +27,7 @@
 <p class="muted" style="margin-top: 10px">Moyen : {{ $payment->method->label() }}@if($payment->reference) · Réf. {{ $payment->reference }}@endif @if($payment->note)<br>{{ $payment->note }}@endif</p>
 
 <table class="stamp"><tr>
-    <td>Payé par<br><strong>{{ $payment->payer?->name ?? '—' }}</strong><br><br>____________________</td>
+    <td>Payé par<br><strong>{{ $paidBy ?? '—' }}</strong><br><br>____________________</td>
     <td class="r">Reçu par<br><strong>{{ $payment->user->name }}</strong><br><br>____________________</td>
 </tr></table>
 @endsection

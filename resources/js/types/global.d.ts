@@ -18,7 +18,7 @@ declare module '@inertiajs/core' {
             flash: {
                 success: string | null;
                 error: string | null;
-                credentials: { name: string; email: string; phone: string | null; password: string; new: boolean; login_url: string } | null;
+                credentials: { id: number; name: string; email: string; phone: string | null; password: string; new: boolean; login_url: string; mail_sent: boolean } | null;
             };
             [key: string]: unknown;
         };

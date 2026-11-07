@@ -40,7 +40,7 @@ class ClientController extends Controller
 
                 return [...Present::project($p, $viewer), 'paid' => $p->paidAmount(), 'remaining' => $p->remainingAmount()];
             }),
-            'payments' => $client->payments()->with(['project', 'recorder'])->latest('paid_at')->get()->map(fn ($p) => Present::clientPayment($p)),
+            'payments' => $client->payments()->with(['project', 'recorder'])->latest('paid_at')->get()->map(fn ($p) => Present::clientPayment($p, $viewer)),
         ]);
     }
 
