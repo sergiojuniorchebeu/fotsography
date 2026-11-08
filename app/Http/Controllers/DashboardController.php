@@ -58,13 +58,16 @@ class DashboardController extends Controller
             $base['monthly'] = FinanceService::monthly();
             $base['members'] = FinanceService::members();
             $settings = StudioSetting::current();
+            $firstProject = Project::latest('id')->first();
             $base['setup'] = [
-                ['key' => 'studio', 'label' => 'Renseigner l\'identité du studio (adresse, téléphone, logo)', 'href' => '/settings', 'done' => (bool) ($settings->phone || $settings->address)],
-                ['key' => 'team', 'label' => 'Créer les comptes de l\'équipe', 'href' => '/team', 'done' => User::count() > 1],
-                ['key' => 'client', 'label' => 'Ajouter un premier client', 'href' => '/clients', 'done' => Client::exists()],
-                ['key' => 'project', 'label' => 'Créer un projet, ses activités et ses tâches', 'href' => '/projects', 'done' => Project::exists()],
+                ['key' => 'studio', 'label' => 'Présentez votre studio', 'text' => 'Adresse, téléphone et logo : ils apparaissent sur les reçus et les factures.', 'href' => '/settings', 'done' => (bool) ($settings->phone || $settings->address)],
+                ['key' => 'team', 'label' => 'Ajoutez votre équipe', 'text' => 'Un compte par personne. Vous copiez son mot de passe et vous le lui envoyez par WhatsApp.', 'href' => '/team', 'done' => User::where('role', '!=', \App\Enums\Role::SuperAdmin)->count() > 1],
+                ['key' => 'client', 'label' => 'Ajoutez un client', 'text' => 'Nom et téléphone suffisent.', 'href' => '/clients', 'done' => Client::exists()],
+                ['key' => 'project', 'label' => 'Créez un projet', 'text' => 'Le prix, la date de l\'événement et la date de livraison au client.', 'href' => '/projects', 'done' => Project::exists()],
+                ['key' => 'tasks', 'label' => 'Répartissez le travail', 'text' => 'Dans le projet : « Ajouter une tâche », qui fait quoi, pour quand.', 'href' => $firstProject ? "/projects/{$firstProject->id}" : '/projects', 'done' => Task::exists()],
+                ['key' => 'payment', 'label' => 'Encaissez l\'acompte', 'text' => 'Dans le projet : « Encaisser ». Un reçu PDF est créé.', 'href' => $firstProject ? "/projects/{$firstProject->id}" : '/projects', 'done' => ClientPayment::exists()],
             ];
-            $base['recentPayments'] = ClientPayment::with(['project', 'recorder'])->latest('paid_at')->limit(6)->get()->map(fn ($p) => Present::clientPayment($p));
+            $base['recentPayments'] = ClientPayment::with(['project', 'recorder'])->latest('paid_at')->limit(6)->get()->map(fn ($p) => Present::clientPayment($p, $user));
         }
 
         return Inertia::render('dashboard', $base);

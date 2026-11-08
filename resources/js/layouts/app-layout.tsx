@@ -37,7 +37,7 @@ type NavItem = { href: string; label: string; short?: string; icon: typeof Apert
 
 function navFor(role: string, templates: boolean): NavItem[] {
     const dashboard = { href: '/', label: 'Tableau de bord', short: 'Accueil', icon: LayoutDashboard };
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'super_admin') {
         return [
             dashboard,
             { href: '/projects', label: 'Projets', icon: FolderKanban },

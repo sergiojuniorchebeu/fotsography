@@ -15,6 +15,7 @@ use App\Services\Money;
 use App\Services\Notifier;
 use App\Services\PenaltyService;
 use App\Support\Present;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -77,21 +78,53 @@ class TaskController extends Controller
             'methods' => PaymentMethod::options(),
             'penaltyDebt' => $viewer->isAdmin() && $task->assignee ? $task->assignee->penaltyDebt() : null,
             'members' => $viewer->isStaff() ? Present::assignable() : [],
-            'siblings' => $viewer->isStaff() ? self::siblings($task->project, $task) : [],
+            'siblings' => $viewer->isStaff() ? self::siblings($task->project, $task, $viewer) : [],
+            'dateBounds' => ['start' => $task->project->taskStartDate()->toDateString(), 'end' => $task->project->delivery_date->toDateString()],
         ]);
     }
 
     /** Other tasks of the project, for the "starts after" list. @return array<int, array<string, mixed>> */
-    public static function siblings(Project $project, ?Task $except = null): array
+    public static function siblings(Project $project, ?Task $except = null, ?User $viewer = null): array
     {
         return $project->tasks()->with(['assignee', 'activity'])
             ->when($except, fn ($q) => $q->whereKeyNot($except->id))
             ->orderBy('due_date')->get()
-            ->map(fn (Task $t) => ['id' => $t->id, 'name' => $t->name, 'activity' => $t->activity?->name, 'assignee' => $t->assignee?->name, 'due_date' => $t->due_date->toDateString(), 'status_label' => $t->status->label()])
+            ->map(fn (Task $t) => ['id' => $t->id, 'name' => $t->name, 'activity' => $t->activity?->name, 'assignee' => $t->assignee?->nameFor($viewer), 'due_date' => $t->due_date->toDateString(), 'status_label' => $t->status->label()])
             ->all();
     }
 
     public function store(Request $request, Activity $activity): RedirectResponse
+    {
+        return $this->create($request, $activity);
+    }
+
+    /** "Ajouter une tâche" from the project: pick an existing activity or name a new one on the fly. */
+    public function storeInProject(Request $request, Project $project): RedirectResponse
+    {
+        $request->validate([
+            'activity_id' => ['nullable', 'integer'],
+            'activity_name' => ['nullable', 'required_without:activity_id', 'string', 'max:255'],
+        ], ['activity_name.required_without' => 'Choisissez une activité ou donnez un nom à la nouvelle.']);
+
+        if ($request->filled('activity_id')) {
+            $activity = $project->activities()->whereKey($request->integer('activity_id'))->first();
+            if (! $activity) {
+                throw ValidationException::withMessages(['activity_id' => 'Choisissez une activité de ce projet.']);
+            }
+        } else {
+            $name = trim((string) $request->input('activity_name'));
+            $activity = $project->activities()->get()->first(fn (Activity $a) => mb_strtolower($a->name) === mb_strtolower($name));
+            if (! $activity) {
+                $this->validated($request, $project, null); // fail before creating an empty activity
+                $activity = $project->activities()->create(['name' => $name, 'created_by' => $request->user()->id]);
+                ActivityLog::record('created', "Activité « {$activity->name} » ajoutée au projet « {$project->name} »", $activity);
+            }
+        }
+
+        return $this->create($request, $activity);
+    }
+
+    private function create(Request $request, Activity $activity): RedirectResponse
     {
         $viewer = $request->user();
         $project = $activity->project;
@@ -299,17 +332,37 @@ class TaskController extends Controller
         $data = $request->validate($rules);
 
         $assignee = User::findOrFail($data['assigned_to']);
-        if (! $assignee->is_active) {
-            throw ValidationException::withMessages(['assigned_to' => 'Ce membre est désactivé.']);
+        if (! $assignee->is_active || $assignee->isSuperAdmin()) {
+            throw ValidationException::withMessages(['assigned_to' => 'Choisissez un membre actif de l’équipe.']);
         }
 
         $data['depends_on_id'] = $this->checkedDependency($project, $task, $data['depends_on_id'] ?? null);
 
         $data['due_date'] = $data['due_date'] ?? $task?->due_date->toDateString()
-            ?? $project->delivery_date->subDays(StudioSetting::current()->task_delivery_offset_days)->toDateString();
+            ?? $project->clampTaskDate($project->delivery_date->subDays(StudioSetting::current()->task_delivery_offset_days))->toDateString();
+
+        $dueDate = CarbonImmutable::parse($data['due_date']);
+        $startDate = $project->taskStartDate();
+        if ($dueDate->lessThan($startDate) || $dueDate->greaterThan($project->delivery_date)) {
+            throw ValidationException::withMessages(['due_date' => 'L’échéance doit être comprise entre le début du projet ('.$startDate->format('d/m/Y').') et la livraison au client ('.$project->delivery_date->format('d/m/Y').').']);
+        }
+        if ($data['depends_on_id']) {
+            $dependency = $project->tasks()->find($data['depends_on_id']);
+            if ($dependency && $dependency->due_date->greaterThan($dueDate)) {
+                throw ValidationException::withMessages(['due_date' => 'La tâche doit être livrée après sa tâche précédente ('.$dependency->due_date->format('d/m/Y').').']);
+            }
+        }
+        if ($task && $task->dependents()->whereDate('due_date', '<', $dueDate->toDateString())->exists()) {
+            throw ValidationException::withMessages(['due_date' => 'Cette tâche doit rester avant l’échéance de la tâche qui en dépend.']);
+        }
 
         if ($viewer->isAdmin()) {
-            $data['client_share'] = (int) ($data['client_share'] ?? 0);
+            // The client share is set from "Détail de la facture" on the project; keep it unless sent.
+            if ($request->has('client_share')) {
+                $data['client_share'] = (int) ($data['client_share'] ?? 0);
+            } else {
+                unset($data['client_share']);
+            }
             $data['member_fee'] = $assignee->isAdmin() ? 0 : (int) ($data['member_fee'] ?? 0);
         } elseif ($assignee->isAdmin() && $task) {
             $data['member_fee'] = 0;

@@ -27,10 +27,27 @@ class Project extends Model
     {
         return [
             'event_date' => 'date',
+            'start_date' => 'date',
             'delivery_date' => 'date',
             'status' => ProjectStatus::class,
             'total_amount' => 'integer',
         ];
+    }
+
+    /** Inclusive first day on which project work may be due. */
+    public function taskStartDate(): CarbonImmutable
+    {
+        return $this->start_date
+            ? CarbonImmutable::parse($this->start_date)
+            : ($this->event_date ? CarbonImmutable::parse($this->event_date) : CarbonImmutable::parse($this->created_at));
+    }
+
+    /** Keep automatic date suggestions inside the project duration. */
+    public function clampTaskDate(CarbonImmutable $date): CarbonImmutable
+    {
+        return $date->lessThan($this->taskStartDate())
+            ? $this->taskStartDate()
+            : ($date->greaterThan($this->delivery_date) ? CarbonImmutable::parse($this->delivery_date) : $date);
     }
 
     public function client(): BelongsTo

@@ -41,7 +41,18 @@ class User extends Authenticatable
 
     public function isAdmin(): bool
     {
-        return $this->role === Role::Admin;
+        return in_array($this->role, [Role::Admin, Role::SuperAdmin], true);
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === Role::SuperAdmin;
+    }
+
+    /** Hide the developer account's identity from everyone except that account. */
+    public function nameFor(?self $viewer): ?string
+    {
+        return $this->isSuperAdmin() && ! $viewer?->isSuperAdmin() ? null : $this->name;
     }
 
     public function isAssistant(): bool
@@ -118,6 +129,6 @@ class User extends Authenticatable
     /** @return Collection<int, self> */
     public static function admins()
     {
-        return self::where('role', Role::Admin)->where('is_active', true)->get();
+        return self::whereIn('role', [Role::Admin, Role::SuperAdmin])->where('is_active', true)->get();
     }
 }

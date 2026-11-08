@@ -11,7 +11,7 @@ class EnsureRole
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         $user = $request->user();
-        if (! $user || ! in_array($user->role->value, $roles, true)) {
+        if (! $user || (! in_array($user->role->value, $roles, true) && ! (in_array('admin', $roles, true) && $user->isSuperAdmin()))) {
             abort(403, 'Accès réservé.');
         }
 

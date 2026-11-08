@@ -19,6 +19,7 @@ export type Project = {
     name: string;
     location: string | null;
     event_date: string | null;
+    start_date: string;
     delivery_date: string;
     status: string;
     status_label: string;

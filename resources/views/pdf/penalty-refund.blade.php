@@ -28,7 +28,7 @@
 <p class="muted" style="margin-top: 10px">Ce montant avait déjà été réglé par le membre (retenue sur un versement ou paiement direct) avant l'annulation des pénalités.</p>
 
 <table class="stamp"><tr>
-    <td>Remboursé par<br><strong>{{ $refund->refunder?->name ?? '—' }}</strong><br><br>____________________</td>
+    <td>Remboursé par<br><strong>{{ $refundedBy ?? '—' }}</strong><br><br>____________________</td>
     <td class="r">Reçu par<br><strong>{{ $refund->user->name }}</strong><br><br>____________________</td>
 </tr></table>
 @endsection

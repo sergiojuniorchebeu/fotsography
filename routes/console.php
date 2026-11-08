@@ -89,7 +89,7 @@ Artisan::command('studio:check', function () {
     }
     $last = Cache::get('studio:scheduler-heartbeat');
     $line($last && now()->diffInMinutes($last, true) < 5, 'Planificateur actif'.($last ? ' (dernier passage '.$last.')' : ''), 'Ajouter la ligne cron : * * * * * php artisan schedule:run');
-    $line(User::where('role', 'admin')->where('is_active', true)->exists(), 'Un admin existe', 'php artisan studio:create-admin');
+    $line(User::whereIn('role', ['admin', 'super_admin'])->where('is_active', true)->exists(), 'Un admin existe', 'php artisan studio:create-admin');
     $this->newLine();
     $ok ? $this->info('Tout est prêt.') : $this->warn('Corrigez les points ci-dessus avant la mise en ligne.');
 

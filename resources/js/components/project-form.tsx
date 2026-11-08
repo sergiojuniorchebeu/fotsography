@@ -25,6 +25,7 @@ export function ProjectFormModal({
         name: project?.name ?? '',
         location: project?.location ?? '',
         event_date: project?.event_date ?? '',
+        start_date: project?.start_date ?? new Date().toLocaleDateString('sv-SE'),
         delivery_date: project?.delivery_date ?? '',
         total_amount: (project?.total_amount ?? '') as number | '',
         advance_pct: project?.advance_pct ?? defaults?.advance_pct ?? 30,
@@ -82,16 +83,20 @@ export function ProjectFormModal({
                     <Input value={form.data.location} onChange={(e) => form.setData('location', e.target.value)} placeholder="Douala, Bonapriso" />
                 </Field>
                 <Field label="Date de l'événement" error={form.errors.event_date}>
-                    <Input type="date" value={form.data.event_date} onChange={(e) => form.setData('event_date', e.target.value)} />
+                    <Input type="date" min={form.data.start_date || undefined} max={form.data.delivery_date || undefined} value={form.data.event_date} onChange={(e) => form.setData('event_date', e.target.value)} />
                 </Field>
-                <Field label="Livraison globale" error={form.errors.delivery_date}>
-                    <Input type="date" value={form.data.delivery_date} onChange={(e) => form.setData('delivery_date', e.target.value)} />
+                <Field label="Début du projet" error={form.errors.start_date} hint="Première date possible pour une échéance de tâche.">
+                    <Input type="date" value={form.data.start_date} max={form.data.delivery_date || undefined} onChange={(e) => form.setData('start_date', e.target.value)} />
                 </Field>
-                <Field label="Montant total" error={form.errors.total_amount} className="sm:col-span-2">
+                <Field label="Livraison au client" error={form.errors.delivery_date} hint="Date à laquelle le client reçoit tout. Les tâches sont proposées quelques jours avant.">
+                    <Input type="date" value={form.data.delivery_date} min={form.data.start_date || undefined} onChange={(e) => form.setData('delivery_date', e.target.value)} />
+                </Field>
+                <Field label="Prix payé par le client" error={form.errors.total_amount} className="sm:col-span-2">
                     <MoneyInput value={form.data.total_amount} onChange={(v) => form.setData('total_amount', v)} />
                 </Field>
                 <div className="rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200/70 sm:col-span-2">
-                    <p className="mb-3 text-sm font-medium">Plan de paiement du client</p>
+                    <p className="text-sm font-medium">En combien de fois le client paie ?</p>
+                    <p className="mb-3 text-xs text-stone-500">Mettez 0 % à une tranche si elle n'existe pas (ex. 50 % d'avance, 0 %, 50 % de solde).</p>
                     <div className="grid grid-cols-3 gap-3">
                         {([['advance_pct', 'Avance', adv], ['intermediate_pct', 'Intermédiaire', mid], ['balance_pct', 'Solde', total - adv - mid]] as const).map(([key, label, amount]) => (
                             <Field key={key} label={`${label} (%)`}>
@@ -103,7 +108,7 @@ export function ProjectFormModal({
                     {(form.errors.advance_pct || pctSum !== 100) && (
                         <p className="mt-2 text-xs font-medium text-red-600">{form.errors.advance_pct ?? `Total : ${pctSum} % (doit faire 100 %)`}</p>
                     )}
-                    <p className="mt-2 text-xs text-stone-500">Les arrondis sont absorbés par le solde.</p>
+                    <p className="mt-2 text-xs text-stone-500">Les arrondis vont sur le solde.</p>
                 </div>
                 {!project && templates.length > 0 && (
                     <Field label="Partir d'un modèle (facultatif)" className="sm:col-span-2" hint="Après l'enregistrement, vous vérifiez qui fait quoi et les dates, puis toutes les tâches sont créées d'un coup.">

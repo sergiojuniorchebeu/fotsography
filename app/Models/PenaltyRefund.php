@@ -39,18 +39,18 @@ class PenaltyRefund extends Model
     }
 
     /** @return array<string, mixed> */
-    public function toRow(): array
+    public function toRow(?User $viewer = null): array
     {
         return [
             'id' => $this->id,
-            'member' => $this->user?->name,
+            'member' => $this->user?->nameFor($viewer),
             'amount' => $this->amount,
             'method_label' => $this->method->label(),
             'reference' => $this->reference,
             'reason' => $this->reason,
             'receipt_number' => $this->receipt_number,
             'task' => $this->task ? ['id' => $this->task->id, 'name' => $this->task->name] : null,
-            'refunded_by' => $this->refunder?->name,
+            'refunded_by' => $this->refunder?->nameFor($viewer),
             'refunded_at' => $this->refunded_at->toIso8601String(),
         ];
     }

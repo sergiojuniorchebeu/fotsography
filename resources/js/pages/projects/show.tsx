@@ -1,12 +1,12 @@
 import { confirmDialog } from '@/components/confirm-dialog';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { BookmarkPlus, CalendarDays, Download, FileText, LayoutTemplate, MapPin, Pencil, Plus, Receipt, Trash2 } from 'lucide-react';
+import { BookmarkPlus, CalendarDays, Download, FileText, LayoutTemplate, ListChecks, MapPin, Pencil, Plus, Receipt, Trash2, Wand2 } from 'lucide-react';
 import { ApplyTemplateModal } from '@/components/apply-template-modal';
 import { useState } from 'react';
 import { ProjectFormModal } from '@/components/project-form';
 import { DueChip } from '@/components/task-list';
 import { TaskFormModal } from '@/components/task-form';
-import { Badge, Button, Card, Empty, Field, Input, Modal, MoneyInput, PageHeader, Select, Stat, Table, Td, TaskStatusBadge, Textarea, Th, projectTone, formErrorBanner } from '@/components/ui';
+import { Badge, Button, Card, Empty, Field, HowItWorks, Input, Modal, MoneyInput, PageHeader, Select, Stat, Table, Td, TaskStatusBadge, Textarea, Th, projectTone, formErrorBanner } from '@/components/ui';
 import AppLayout from '@/layouts/app-layout';
 import { date, dateTime, fcfa } from '@/lib/format';
 import type { Activity, ClientPayment, Expense, Member, MemberPayment, Option, Project, SiblingTask, Task, TemplatePreview } from '@/types';
@@ -43,7 +43,7 @@ function ActivityModal({ open, onClose, projectId, activity }: { open: boolean; 
         }
     };
     return (
-        <Modal open={open} onClose={onClose} onSubmit={submit} dirty={form.isDirty} errorBanner={formErrorBanner(form.errors)} title={activity ? 'Modifier l\'activité' : 'Nouvelle activité'} description="Une étape du projet, découpée ensuite en tâches." footer={<><Button variant="secondary" onClick={onClose}>Annuler</Button><Button type="submit" loading={form.processing}>Enregistrer</Button></>}>
+        <Modal open={open} onClose={onClose} onSubmit={submit} dirty={form.isDirty} errorBanner={formErrorBanner(form.errors)} title={activity ? 'Modifier l\'activité' : 'Nouvelle activité'} description="Une partie du projet (Photo, Vidéo, Album…) qui regroupe des tâches et des dépenses." footer={<><Button variant="secondary" onClick={onClose}>Annuler</Button><Button type="submit" loading={form.processing}>Enregistrer</Button></>}>
             <div className="space-y-4">
                 <Field label="Nom" error={form.errors.name}>
                     <Input autoFocus value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} placeholder="Shooting, Montage vidéo, Retouche photos…" />
@@ -154,7 +154,7 @@ function ActivityCard({ activity, admin, onAddTask, onEditTask, onEdit, onAddExp
             title={<span className="flex items-center gap-2">{activity.name}<Badge>{activity.tasks.length} tâche(s)</Badge></span>}
             actions={
                 <>
-                    <Button size="sm" onClick={onAddTask}><Plus className="size-3.5" />Tâche</Button>
+                    <Button size="sm" variant="secondary" onClick={onAddTask}><Plus className="size-3.5" />Tâche</Button>
                     {admin && <Button size="sm" variant="secondary" onClick={onAddExpense}><Plus className="size-3.5" />Dépense</Button>}
                     <Button size="sm" variant="ghost" onClick={onEdit} aria-label="Modifier l'activité"><Pencil className="size-3.5" /></Button>
                     <Button size="sm" variant="ghost" aria-label="Supprimer l'activité" onClick={() => void confirmDialog({ title: 'Archiver l\'activité', confirmLabel: 'Archiver', message: <>L'activité « {activity.name} », ses {activity.tasks.length} tâche(s) et ses dépenses seront archivées. Impossible si une tâche est terminée ou déjà payée.</>, request: { method: 'delete', url: `/activities/${activity.id}` } })}><Trash2 className="size-3.5" /></Button>
@@ -163,13 +163,12 @@ function ActivityCard({ activity, admin, onAddTask, onEditTask, onEdit, onAddExp
         >
             {activity.description && <p className="mb-3 text-sm text-stone-500">{activity.description}</p>}
             {activity.tasks.length === 0 ? (
-                <Empty title="Aucune tâche dans cette activité." />
+                <Empty title="Aucune tâche dans cette activité.">Ajoutez-en une avec le bouton « Tâche ».</Empty>
             ) : (
                 <Table>
                     <thead>
                         <tr>
                             <Th>Tâche</Th><Th>Assignée à</Th><Th>Échéance</Th><Th>Statut</Th>
-                            {admin && <Th className="text-right">Part client</Th>}
                             {admin && <Th className="text-right">Rémunération</Th>}
                             <Th />
                         </tr>
@@ -184,7 +183,6 @@ function ActivityCard({ activity, admin, onAddTask, onEditTask, onEdit, onAddExp
                                 <Td className="text-stone-600">{t.assignee?.name ?? '—'}</Td>
                                 <Td><DueChip task={t} /></Td>
                                 <Td><TaskStatusBadge status={t.status} label={t.status_label} late={t.is_late} waiting={t.is_waiting} /></Td>
-                                {admin && <Td className="tabular text-right">{fcfa(t.client_share)}</Td>}
                                 {admin && <Td className="tabular text-right">{fcfa(t.member_fee)}</Td>}
                                 <Td className="text-right">
                                     {(admin || t.status !== 'done') && (
@@ -215,6 +213,76 @@ function ActivityCard({ activity, admin, onAddTask, onEditTask, onEdit, onAddExp
                 </div>
             )}
         </Card>
+    );
+}
+
+/** Splits the project price between its tasks; each line appears on the client's invoice. */
+function InvoiceLinesModal({ open, onClose, projectId, total, activities }: { open: boolean; onClose: () => void; projectId: number; total: number; activities: Activity[] }) {
+    const tasks = activities.flatMap((a) => a.tasks.map((t) => ({ ...t, activityName: a.name })));
+    const form = useForm<{ lines: Record<string, number | ''> }>({ lines: Object.fromEntries(tasks.map((t) => [String(t.id), t.client_share ? t.client_share : ''])) });
+    const sum = Object.values(form.data.lines).reduce<number>((s, v) => s + Number(v || 0), 0);
+    const left = total - sum;
+
+    // Proportional to what each person is paid (the bigger the job, the bigger the line); equal split otherwise.
+    const auto = () => {
+        const weights = tasks.map((t) => t.member_fee ?? 0);
+        const base = weights.some((w) => w > 0) ? weights : tasks.map(() => 1);
+        const wsum = base.reduce((a, b) => a + b, 0);
+        let given = 0;
+        const lines: Record<string, number | ''> = {};
+        tasks.forEach((t, i) => {
+            const amount = i === tasks.length - 1 ? total - given : Math.round(((total * base[i]) / wsum) / 1000) * 1000;
+            given += amount;
+            lines[String(t.id)] = amount || '';
+        });
+        form.setData('lines', lines);
+    };
+    const clear = () => form.setData('lines', Object.fromEntries(tasks.map((t) => [String(t.id), ''])));
+
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            size="lg"
+            dirty={form.isDirty}
+            errorBanner={formErrorBanner(form.errors)}
+            title="Détail de la facture"
+            description={<>Facultatif. Indiquez combien le client paie pour chaque prestation : chaque ligne apparaîtra sur sa facture. Sans détail, la facture affiche simplement le prix total ({fcfa(total)}).</>}
+            onSubmit={() => {
+                form.transform((d) => ({ lines: Object.fromEntries(Object.entries(d.lines).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)])) }));
+                form.put(`/projects/${projectId}/invoice-lines`, { preserveScroll: true, onSuccess: onClose });
+            }}
+            footer={
+                <>
+                    <p className={`mr-auto text-sm ${left < 0 ? 'font-medium text-red-600' : 'text-stone-600'}`}>
+                        {sum === 0 ? 'Facture au montant global' : left === 0 ? '✓ Tout le prix est réparti' : left > 0 ? `Reste ${fcfa(left)} non détaillé` : `Dépasse de ${fcfa(-left)}`}
+                    </p>
+                    <Button variant="secondary" onClick={onClose}>Annuler</Button>
+                    <Button type="submit" loading={form.processing} disabled={left < 0}>Enregistrer</Button>
+                </>
+            }
+        >
+            {tasks.length === 0 ? <Empty title="Ajoutez d'abord les tâches du projet." /> : (
+                <>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                        <Button variant="secondary" onClick={auto}><Wand2 className="size-4" />Répartir automatiquement</Button>
+                        <Button variant="ghost" onClick={clear}>Tout effacer</Button>
+                    </div>
+                    <p className="mb-3 text-xs text-stone-500">« Répartir automatiquement » partage les {fcfa(total)} selon ce que chaque personne est payée (ou à parts égales). Vous pouvez ensuite ajuster chaque montant.</p>
+                    <ul className="divide-y divide-stone-100 rounded-xl ring-1 ring-stone-100">
+                        {tasks.map((t) => (
+                            <li key={t.id} className="flex items-center gap-3 px-3 py-2">
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-medium">{t.name}</p>
+                                    <p className="truncate text-xs text-stone-500">{t.activityName}{t.member_fee ? ` · payé ${fcfa(t.member_fee)} à ${t.assignee?.name ?? '—'}` : ''}</p>
+                                </div>
+                                <MoneyInput className="w-40" value={form.data.lines[String(t.id)] ?? ''} onChange={(v) => form.setData('lines', { ...form.data.lines, [String(t.id)]: v })} />
+                            </li>
+                        ))}
+                    </ul>
+                </>
+            )}
+        </Modal>
     );
 }
 
@@ -250,6 +318,7 @@ export default function ProjectShow(props: Props) {
     const initialTemplate = typeof window !== 'undefined' ? Number(new URLSearchParams(window.location.search).get('template')) || undefined : undefined;
     const [tplModal, setTplModal] = useState<{ open: boolean; id?: number; key: number }>({ open: !!initialTemplate, id: initialTemplate, key: 1 });
     const [saveTpl, setSaveTpl] = useState(false);
+    const [linesModal, setLinesModal] = useState(0);
     const hasTasks = activities.some((a) => a.tasks.length > 0);
     const closeTpl = () => {
         setTplModal((s) => ({ ...s, open: false }));
@@ -269,17 +338,17 @@ export default function ProjectShow(props: Props) {
                     <span className="flex flex-wrap gap-x-4 gap-y-1">
                         {project.client && (admin ? <Link href={`/clients/${project.client.id}`} className="hover:underline">{project.client.name}</Link> : <span>{project.client.name}</span>)}
                         {project.location && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" />{project.location}</span>}
-                        <span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" />Événement {date(project.event_date)}</span>
-                        <span className="font-medium text-stone-700">Livraison globale {date(project.delivery_date)}</span>
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" />Projet {date(project.start_date)} → {date(project.delivery_date)}</span>
+                        {project.event_date && <span className="inline-flex items-center gap-1">Événement {date(project.event_date)}</span>}
                     </span>
                 }
                 actions={
                     <>
                         {props.templates.length > 0 && <Button variant="secondary" onClick={() => setTplModal({ open: true, key: Date.now() })}><LayoutTemplate className="size-4" />Appliquer un modèle</Button>}
-                        <Button variant="secondary" onClick={() => setActivityModal({ open: true })}><Plus className="size-4" />Activité</Button>
+                        <Button onClick={() => setTaskModal({ open: true, key: Date.now() })}><Plus className="size-4" />Ajouter une tâche</Button>
                         {admin && (
                             <>
-                                <Button onClick={() => setPayModal({ open: true, preset: firstUnpaid, key: Date.now() })} disabled={project.status === 'cancelled' || f?.remaining === 0}><Receipt className="size-4" />Encaisser</Button>
+                                <Button variant="secondary" onClick={() => setPayModal({ open: true, preset: firstUnpaid, key: Date.now() })} disabled={project.status === 'cancelled' || f?.remaining === 0}><Receipt className="size-4" />Encaisser</Button>
                                 <Button variant="ghost" onClick={() => setEditProject(true)} aria-label="Modifier le projet"><Pencil className="size-4" /></Button>
                                 {hasTasks && templatesOn && <Button variant="ghost" onClick={() => setSaveTpl(true)} aria-label="Enregistrer comme modèle" title="Enregistrer comme modèle"><BookmarkPlus className="size-4" /></Button>}
                                 <Button variant="ghost" aria-label="Archiver le projet" title="Archiver le projet" onClick={() => void confirmDialog({ title: 'Archiver ce projet', confirmLabel: 'Archiver le projet', message: <>« {project.name} », ses activités et ses tâches seront archivés. Un projet qui a déjà des paiements ne peut pas être archivé : passez-le plutôt en « Annulé ».</>, request: { method: 'delete', url: `/projects/${project.id}` } })}><Trash2 className="size-4" /></Button>
@@ -291,8 +360,21 @@ export default function ProjectShow(props: Props) {
 
             {project.notes && <p className="mb-6 rounded-xl bg-white p-4 text-sm whitespace-pre-line text-stone-600 ring-1 ring-stone-200/70">{project.notes}</p>}
 
+            <HowItWorks
+                id="project"
+                title="Comment gérer un projet ?"
+                steps={[
+                    { title: 'Ajoutez les tâches', text: 'Pour chaque travail : quoi faire, qui s\'en occupe, pour quand. Rangez-les par activité (Photo, Vidéo, Album…).' },
+                    { title: 'Enchaînez si besoin', text: 'Une tâche peut attendre une autre (la retouche attend le shooting). La personne est prévenue quand c\'est son tour.' },
+                    { title: 'L\'équipe livre', text: 'Chacun commence sa tâche puis livre son travail. Vous l\'ouvrez et vous validez, ou vous la renvoyez avec un commentaire.' },
+                    admin
+                        ? { title: 'Encaissez', text: 'Enregistrez l\'acompte, la tranche et le solde : un reçu est créé à chaque fois, la facture à la fin.' }
+                        : { title: 'Suivez l\'avancement', text: 'Les retards apparaissent en rouge. Le tableau de bord montre qui est chargé et qui est disponible.' },
+                ]}
+            />
+
             {admin && f && (
-                <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
+                <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
                     <Stat label="Montant" value={fcfa(f.revenue)} />
                     <Stat label="Encaissé" value={fcfa(f.collected)} tone="positive" />
                     <Stat label="Reste à encaisser" value={fcfa(f.remaining)} tone={f.remaining ? 'warning' : undefined} />
@@ -318,7 +400,13 @@ export default function ProjectShow(props: Props) {
                                 </li>
                             ))}
                         </ul>
-                        <p className="mt-3 text-xs text-stone-500">Parts client attribuées aux tâches : {fcfa(f?.client_shares)} / {fcfa(f?.revenue)}</p>
+                        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-3 py-2.5">
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium">Détail de la facture</p>
+                                <p className="text-xs text-stone-500">{f?.client_shares ? `${fcfa(f.client_shares)} détaillés sur ${fcfa(f.revenue)}` : 'Montant global, sans détail par prestation'}</p>
+                            </div>
+                            <Button size="sm" variant="secondary" onClick={() => setLinesModal(Date.now())} disabled={!hasTasks} title={hasTasks ? undefined : 'Ajoutez d\'abord des tâches'}><ListChecks className="size-3.5" />{f?.client_shares ? 'Modifier' : 'Détailler'}</Button>
+                        </div>
                     </Card>
                     <Card title={`Encaissements (${props.payments?.length ?? 0})`} className="lg:col-span-3">
                         {!props.payments?.length ? <Empty title="Aucun encaissement pour ce projet." /> : (
@@ -344,11 +432,11 @@ export default function ProjectShow(props: Props) {
             <div className="space-y-6">
                 {activities.length === 0 ? (
                     <Card>
-                        <Empty title="Aucune tâche pour l'instant">
-                            {props.templates.length > 0 ? 'Le plus rapide : partez d\'un modèle (Mariage, Séance photo…). Toutes les tâches sont créées d\'un coup, enchaînées et réparties dans l\'équipe.' : 'Créez une activité (ex. Photo, Vidéo), puis ajoutez-y les tâches de chacun.'}
+                        <Empty icon={<ListChecks className="size-10" />} title="Aucune tâche pour l'instant">
+                            Commencez par dire qui fait quoi : par exemple « Couverture photo » pour le photographe, puis « Retouche » pour le retoucheur.
                             <div className="mt-4 flex flex-wrap justify-center gap-2">
-                                {props.templates.length > 0 && <Button onClick={() => setTplModal({ open: true, key: Date.now() })}><LayoutTemplate className="size-4" />Partir d'un modèle</Button>}
-                                <Button variant="secondary" onClick={() => setActivityModal({ open: true })}><Plus className="size-4" />{props.templates.length > 0 ? 'Créer à la main' : 'Créer une activité'}</Button>
+                                <Button onClick={() => setTaskModal({ open: true, key: Date.now() })}><Plus className="size-4" />Ajouter la première tâche</Button>
+                                {props.templates.length > 0 && <Button variant="secondary" onClick={() => setTplModal({ open: true, key: Date.now() })}><LayoutTemplate className="size-4" />Partir d'un modèle</Button>}
                             </div>
                         </Empty>
                     </Card>
@@ -390,10 +478,11 @@ export default function ProjectShow(props: Props) {
             )}
 
             <ActivityModal key={activityModal.activity?.id ?? 'new'} open={activityModal.open} onClose={() => setActivityModal({ open: false })} projectId={project.id} activity={activityModal.activity} />
-            <TaskFormModal key={`t${taskModal.key}`} open={taskModal.open} onClose={() => setTaskModal((s) => ({ ...s, open: false }))} activityId={taskModal.activityId} task={taskModal.task} members={members} siblings={siblings} defaultDueDate={defaultTaskDueDate} />
-            <ApplyTemplateModal key={`tpl${tplModal.key}`} open={tplModal.open} onClose={closeTpl} projectId={project.id} templates={props.templates} members={members} initialId={tplModal.id} isAdmin={admin} hasTasks={hasTasks} shareLeft={props.shareLeft} />
+            <TaskFormModal key={`t${taskModal.key}`} open={taskModal.open} onClose={() => setTaskModal((s) => ({ ...s, open: false }))} projectId={project.id} activities={activities} activityId={taskModal.activityId} task={taskModal.task} members={members} siblings={siblings} defaultDueDate={defaultTaskDueDate} minDate={project.start_date} maxDate={project.delivery_date} />
+            <ApplyTemplateModal key={`tpl${tplModal.key}`} open={tplModal.open} onClose={closeTpl} projectId={project.id} templates={props.templates} members={members} initialId={tplModal.id} isAdmin={admin} hasTasks={hasTasks} shareLeft={props.shareLeft} startDate={project.start_date} deliveryDate={project.delivery_date} />
             {admin && (
                 <>
+                    {linesModal > 0 && <InvoiceLinesModal key={linesModal} open onClose={() => setLinesModal(0)} projectId={project.id} total={project.total_amount ?? 0} activities={activities} />}
                     {saveTpl && <SaveTemplateModal projectId={project.id} projectName={project.name} onClose={() => setSaveTpl(false)} />}
                     <ExpenseModal key={`e${expenseModal.key}`} open={expenseModal.open} onClose={() => setExpenseModal((s) => ({ ...s, open: false }))} activityId={expenseModal.activityId} expense={expenseModal.expense} />
                     {props.plan && props.methods && (

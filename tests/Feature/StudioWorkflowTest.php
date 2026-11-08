@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\Role;
 use App\Enums\TaskStatus;
+use App\Mail\AccountAccess;
 use App\Models\Activity;
 use App\Models\Client;
 use App\Models\Penalty;
@@ -17,6 +18,7 @@ use App\Services\FinanceService;
 use App\Services\PenaltyService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class StudioWorkflowTest extends TestCase
@@ -344,6 +346,35 @@ class StudioWorkflowTest extends TestCase
         $this->actingAs($this->member)->get('/me/earnings')->assertInertia(fn ($p) => $p->has('refunds', 1)->where('summary.penalty_debt', 0));
     }
 
+    public function test_add_task_from_project_creates_or_reuses_the_activity(): void
+    {
+        $payload = ['name' => 'Montage du film', 'assigned_to' => $this->member->id, 'due_date' => '2026-06-28', 'member_fee' => 60_000];
+        $this->actingAs($this->assistant)->post("/projects/{$this->project->id}/tasks", [...$payload, 'activity_name' => 'Vidéo'])->assertSessionHasNoErrors();
+        $this->post("/projects/{$this->project->id}/tasks", [...$payload, 'name' => 'Teaser', 'activity_name' => 'vidéo'])->assertSessionHasNoErrors();
+        $this->assertSame(1, $this->project->activities()->where('name', 'Vidéo')->count());
+        $this->assertSame(2, $this->project->activities()->where('name', 'Vidéo')->first()->tasks()->count());
+        $this->post("/projects/{$this->project->id}/tasks", [...$payload, 'activity_id' => $this->activity->id])->assertSessionHasNoErrors();
+        $this->assertSame(1, $this->activity->tasks()->count());
+        // Missing person: nothing is created, not even an empty activity.
+        $this->post("/projects/{$this->project->id}/tasks", ['name' => 'X', 'activity_name' => 'Album'])->assertSessionHasErrors('assigned_to');
+        $this->assertFalse($this->project->activities()->where('name', 'Album')->exists());
+    }
+
+    public function test_invoice_lines_split_the_price_and_survive_task_edits(): void
+    {
+        $a = $this->task(['name' => 'Photos']);
+        $b = $this->task(['name' => 'Album']);
+        $this->actingAs($this->admin)->put("/projects/{$this->project->id}/invoice-lines", ['lines' => [$a->id => 600_000, $b->id => 400_001]])->assertSessionHasNoErrors();
+        $this->assertSame(600_000, $a->fresh()->client_share);
+        $this->put("/projects/{$this->project->id}/invoice-lines", ['lines' => [$a->id => 900_000, $b->id => 400_000]])->assertSessionHasErrors('lines');
+        // Editing a task (form no longer sends client_share) keeps its invoice line.
+        $this->put("/tasks/{$a->id}", ['name' => 'Photos cérémonie', 'assigned_to' => $this->member->id, 'due_date' => '2026-06-25', 'member_fee' => 50_000])->assertSessionHasNoErrors();
+        $this->assertSame(600_000, $a->fresh()->client_share);
+        $this->put("/projects/{$this->project->id}/invoice-lines", ['lines' => []])->assertSessionHasNoErrors();
+        $this->assertSame(0, (int) $this->project->tasks()->sum('client_share'));
+        $this->actingAs($this->assistant)->put("/projects/{$this->project->id}/invoice-lines", ['lines' => []])->assertForbidden();
+    }
+
     public function test_templates_are_hidden_by_default(): void
     {
         $this->actingAs($this->admin)->get('/templates')->assertNotFound();
@@ -353,11 +384,27 @@ class StudioWorkflowTest extends TestCase
 
     public function test_new_member_password_is_given_once_for_copy(): void
     {
+        Mail::fake();
         $this->actingAs($this->admin)->post('/team', ['name' => 'Nina Kamga', 'email' => 'nina@example.com', 'phone' => '690000000', 'role' => 'photographe'])
             ->assertSessionHas('credentials', fn ($c) => $c['name'] === 'Nina Kamga' && strlen($c['password']) >= 8 && $c['new'] === true);
         $nina = User::where('email', 'nina@example.com')->firstOrFail();
         $this->post("/team/{$nina->id}/reset-password")->assertSessionHas('credentials', fn ($c) => $c['new'] === false);
         $this->assertStringNotContainsString(session('credentials')['password'], (string) session('success'));
+        Mail::assertSent(AccountAccess::class, fn ($m) => $m->hasTo('nina@example.com') && $m->isNew);
+        Mail::assertSent(AccountAccess::class, 2);
+
+        // Resend only works with the current temporary password.
+        $temp = session('credentials')['password'];
+        $this->post("/team/{$nina->id}/send-access", ['password' => 'wrong'])->assertSessionHas('error');
+        $this->post("/team/{$nina->id}/send-access", ['password' => $temp])->assertSessionHas('credentials', fn ($c) => $c['mail_sent'] === true);
+        Mail::assertSent(AccountAccess::class, 3);
+        $this->assertStringContainsString($temp, (new AccountAccess($nina, $temp, true))->render());
+
+        // A mail failure never blocks the account creation.
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('SMTP down'));
+        $this->post('/team', ['name' => 'Bob Eto', 'email' => 'bob@example.com', 'role' => 'monteur'])
+            ->assertSessionHas('credentials', fn ($c) => $c['mail_sent'] === false);
+        $this->assertTrue(User::where('email', 'bob@example.com')->exists());
     }
 
     public function test_template_applies_tasks_with_chain_shares_and_least_busy_people(): void

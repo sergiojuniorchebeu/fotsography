@@ -8,11 +8,11 @@ use Illuminate\Database\Seeder;
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Only the studio settings are seeded: the first person who registers becomes the admin.
-     * Run `php artisan db:seed --class=DemoSeeder` for demo data.
+     * Seed core settings and the reserved developer account. Demo data is opt-in.
      */
     public function run(): void
     {
         StudioSetting::current();
+        $this->call(SuperAdminSeeder::class);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Role;
 use App\Enums\PaymentMethod;
 use App\Models\Penalty;
 use App\Models\PenaltyRefund;
@@ -27,7 +28,7 @@ class PenaltyController extends Controller
         $viewer = $request->user();
         $memberId = $request->integer('member') ?: null;
 
-        $members = User::withTrashed()
+        $members = User::withTrashed()->when(! $viewer->isSuperAdmin(), fn ($q) => $q->where('role', '!=', Role::SuperAdmin))
             ->withSum('activePenalties as penalties_sum_amount', 'amount')
             ->withSum('penaltySettlements', 'amount')
             ->withSum('penaltyRefunds', 'amount')
@@ -47,6 +48,7 @@ class PenaltyController extends Controller
             ])->sortByDesc('debt')->values();
 
         $penalties = Penalty::query()->with(['task.project', 'user'])
+            ->when(! $viewer->isSuperAdmin(), fn ($q) => $q->whereHas('user', fn ($u) => $u->where('role', '!=', Role::SuperAdmin)))
             ->when($memberId, fn ($q) => $q->where('user_id', $memberId))
             ->latest('accrued_at')->limit(300)->get()
             ->groupBy('task_id')
@@ -67,6 +69,7 @@ class PenaltyController extends Controller
             })->values();
 
         $cancellations = Penalty::query()->with(['task', 'user', 'canceller'])->whereNotNull('cancelled_at')
+            ->when(! $viewer->isSuperAdmin(), fn ($q) => $q->whereHas('user', fn ($u) => $u->where('role', '!=', Role::SuperAdmin)))
             ->when($memberId, fn ($q) => $q->where('user_id', $memberId))
             ->latest('cancelled_at')->limit(300)->get()
             ->groupBy(fn ($p) => $p->cancel_batch ?? 'p'.$p->id)
@@ -77,11 +80,12 @@ class PenaltyController extends Controller
                 'count' => $rows->count(),
                 'amount' => (int) $rows->sum('amount'),
                 'reason' => $rows->first()->cancel_reason,
-                'cancelled_by' => $rows->first()->canceller?->name,
+                'cancelled_by' => $rows->first()->canceller?->nameFor($viewer),
                 'cancelled_at' => $rows->first()->cancelled_at->toIso8601String(),
             ])->values();
 
         $settlements = PenaltySettlement::query()->with(['user', 'collector', 'memberPayment'])
+            ->when(! $viewer->isSuperAdmin(), fn ($q) => $q->whereHas('user', fn ($u) => $u->where('role', '!=', Role::SuperAdmin)))
             ->when($memberId, fn ($q) => $q->where('user_id', $memberId))
             ->latest('settled_at')->limit(300)->get()
             ->map(fn ($s) => [
@@ -93,7 +97,7 @@ class PenaltyController extends Controller
                 'method_label' => $s->method ? PaymentMethod::from($s->method)->label() : null,
                 'receipt' => $s->memberPayment?->receipt_number,
                 'note' => $s->note,
-                'collected_by' => $s->collector?->name,
+                'collected_by' => $s->collector?->nameFor($viewer),
                 'settled_at' => $s->settled_at->toIso8601String(),
             ]);
 
@@ -104,7 +108,7 @@ class PenaltyController extends Controller
             'penalties' => $penalties,
             'settlements' => $settlements,
             'cancellations' => $cancellations,
-            'refunds' => PenaltyRefund::with(['user', 'task', 'refunder'])->when($memberId, fn ($q) => $q->where('user_id', $memberId))->latest('refunded_at')->limit(300)->get()->map(fn ($r) => $r->toRow()),
+            'refunds' => PenaltyRefund::with(['user', 'task', 'refunder'])->when(! $viewer->isSuperAdmin(), fn ($q) => $q->whereHas('user', fn ($u) => $u->where('role', '!=', Role::SuperAdmin)))->when($memberId, fn ($q) => $q->where('user_id', $memberId))->latest('refunded_at')->limit(300)->get()->map(fn ($r) => $r->toRow($viewer)),
             'canCancel' => $viewer->isAdmin(),
             'filters' => ['member' => $memberId],
             'methods' => PaymentMethod::options(),
@@ -153,7 +157,7 @@ class PenaltyController extends Controller
         }
 
         Notifier::admins('penalty_collected', 'Pénalité encaissée',
-            "{$request->user()->name} a encaissé ".Money::fcfa($settlement->amount)." de pénalité auprès de {$member->name}.", '/penalties', $request->user());
+            "Un administrateur a encaissé ".Money::fcfa($settlement->amount)." de pénalité auprès de {$member->name}.", '/penalties', $request->user());
         Notifier::send($member, 'penalty_collected', 'Paiement de pénalité enregistré',
             'Votre paiement de '.Money::fcfa($settlement->amount).' a été enregistré. Reste dû : '.Money::fcfa($member->penaltyDebt()).'.', '/me/earnings');
 

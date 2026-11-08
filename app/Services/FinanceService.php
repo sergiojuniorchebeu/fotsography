@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ProjectStatus;
+use App\Enums\Role;
 use App\Models\ClientPayment;
 use App\Models\Expense;
 use App\Models\MemberPayment;
@@ -107,6 +108,7 @@ class FinanceService
     {
 
         return User::query()
+            ->where('role', '!=', Role::SuperAdmin)
             ->withCount([
                 'tasks',
                 'tasks as tasks_done_count' => fn ($q) => $q->where('status', 'done'),

@@ -40,7 +40,7 @@
 </table>
 
 <table class="stamp"><tr>
-    <td class="muted">Enregistré par {{ $payment->recorder?->name ?? '—' }}</td>
+    <td class="muted">Enregistré par {{ $recordedBy ?? '—' }}</td>
     <td class="r">Signature et cachet<br><br><br>____________________</td>
 </tr></table>
 @endsection

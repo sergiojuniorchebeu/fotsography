@@ -2,7 +2,7 @@ import { Link, router, useForm } from '@inertiajs/react';
 import { Ban, Download, Gavel, HandCoins } from 'lucide-react';
 import { useState } from 'react';
 import { CancelPenaltyModal } from '@/components/cancel-penalty-modal';
-import { Badge, Button, Card, Empty, Field, Modal, MoneyInput, PageHeader, Select, Stat, Table, Td, Textarea, Th, formErrorBanner } from '@/components/ui';
+import { Badge, Button, Card, Empty, Field, HowItWorks, Modal, MoneyInput, PageHeader, Select, Stat, Table, Td, Textarea, Th, formErrorBanner } from '@/components/ui';
 import AppLayout from '@/layouts/app-layout';
 import { date, dateTime, fcfa } from '@/lib/format';
 import type { Option } from '@/types';
@@ -70,6 +70,17 @@ export default function PenaltiesIndex({ members, penalties, settlements, cancel
                 subtitle={config.enabled ? `Module actif : ${fcfa(config.amount)} tous les ${config.interval} jour(s) de retard, dès le 1er jour.` : 'Module désactivé : aucune nouvelle pénalité n\'est comptée, les dettes existantes restent dues.'}
                 actions={<Badge tone={config.enabled ? 'green' : 'stone'}>{config.enabled ? 'Actif' : 'Désactivé'}</Badge>}
             />
+            <HowItWorks
+                id="penalties"
+                title="Comment marchent les pénalités ?"
+                steps={[
+                    { title: 'Retard compté', text: config.enabled ? `Une tâche non livrée après sa date coûte ${fcfa(config.amount)}, dès le 1er jour, puis tous les ${config.interval} jour(s).` : 'Le module est désactivé dans les réglages : aucun retard n\'est compté.' },
+                    { title: 'Pas pendant l\'attente', text: 'Une tâche qui attend une autre tâche n\'a pas de pénalité. Le compteur s\'arrête dès que le travail est livré.' },
+                    { title: 'Retenue ou paiement', text: 'La dette est retirée du prochain versement au membre, ou il la règle directement (« Encaisser »).' },
+                    { title: 'Annulation possible', text: 'L\'admin peut annuler une pénalité injuste avec un motif. Si elle était déjà payée, elle est remboursée.' },
+                ]}
+            />
+
             <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Stat label="Total compté" value={fcfa(totalAccrued)} icon={<Gavel className="size-4" />} />
                 <Stat label="Réglé" value={fcfa(totalAccrued - totalDebt)} tone="positive" hint={totalRefunded ? `Après ${fcfa(totalRefunded)} remboursés` : undefined} />

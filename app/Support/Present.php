@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\TaskStatus;
+use App\Enums\Role;
 use App\Models\ClientPayment;
 use App\Models\MemberPayment;
 use App\Models\Project;
@@ -28,6 +29,7 @@ class Present
             'name' => $p->name,
             'location' => $p->location,
             'event_date' => $p->event_date?->toDateString(),
+            'start_date' => $p->taskStartDate()->toDateString(),
             'delivery_date' => $p->delivery_date->toDateString(),
             'status' => $p->status->value,
             'status_label' => $p->status->label(),
@@ -67,7 +69,7 @@ class Present
             'validated_at' => $t->validated_at?->toIso8601String(),
             'proof_url' => $t->proof_url,
             'proof_note' => $t->proof_note,
-            'assignee' => $t->assignee ? ['id' => $t->assignee->id, 'name' => $t->assignee->name, 'role_label' => $t->assignee->role->label()] : null,
+            'assignee' => $t->assignee && (! $t->assignee->isSuperAdmin() || $viewer->isSuperAdmin()) ? ['id' => $t->assignee->id, 'name' => $t->assignee->name, 'role_label' => $t->assignee->role->label()] : null,
             'activity' => $t->relationLoaded('activity') && $t->activity ? ['id' => $t->activity->id, 'name' => $t->activity->name] : null,
             'project' => $t->relationLoaded('project') && $t->project ? ['id' => $t->project->id, 'name' => $t->project->name] : null,
             'penalty_periods' => $t->penalty_periods,
@@ -80,7 +82,7 @@ class Present
                 'name' => $t->dependency->name,
                 'status' => $t->dependency->status->value,
                 'status_label' => $t->dependency->status->label(),
-                'assignee' => $t->dependency->assignee?->name,
+                'assignee' => $t->dependency->assignee?->nameFor($viewer),
                 'due_date' => $t->dependency->due_date->toDateString(),
                 // Files handed over by the previous step (only once validated).
                 'delivery_url' => $full && $t->dependency->status === TaskStatus::Done ? $t->dependency->proof_url : null,
@@ -90,7 +92,7 @@ class Present
 
         if ($full) {
             $data['dependents'] = $t->dependents()->with('assignee')->get()->map(fn (Task $d) => [
-                'id' => $d->id, 'name' => $d->name, 'assignee' => $d->assignee?->name, 'status' => $d->status->value, 'status_label' => $d->status->label(),
+                'id' => $d->id, 'name' => $d->name, 'assignee' => $d->assignee?->nameFor($viewer), 'status' => $d->status->value, 'status_label' => $d->status->label(),
             ]);
             $data['reviews'] = $t->reviews()->with('user')->get()->map(fn ($r) => [
                 'id' => $r->id,
@@ -98,7 +100,7 @@ class Present
                 'comment' => $r->comment,
                 'corrections' => $r->corrections,
                 'proof_url' => $r->proof_url,
-                'user' => $r->user?->name,
+                'user' => $r->user?->nameFor($viewer),
                 'created_at' => $r->created_at?->toIso8601String(),
             ]);
         }
@@ -109,12 +111,12 @@ class Present
             if ($full) {
                 $data['paid_gross'] = $t->paidGross();
                 $data['remaining_fee'] = $t->remainingFee();
-                $data['payments'] = $t->payments()->with('payer')->latest('id')->get()->map(fn ($p) => self::memberPayment($p));
-                $data['penalties'] = $t->penalties()->with('canceller')->orderBy('period')->get()->map(fn ($p) => $p->toRow());
+                $data['payments'] = $t->payments()->with('payer')->latest('id')->get()->map(fn ($p) => self::memberPayment($p, $viewer));
+                $data['penalties'] = $t->penalties()->with('canceller')->orderBy('period')->get()->map(fn ($p) => $p->toRow($viewer));
             }
         } elseif ($viewer->isAssistant() && $full) {
             // Assistants manage penalties, so they may see the penalty rows (no remuneration).
-            $data['penalties'] = $t->penalties()->with('canceller')->orderBy('period')->get()->map(fn ($p) => $p->toRow());
+            $data['penalties'] = $t->penalties()->with('canceller')->orderBy('period')->get()->map(fn ($p) => $p->toRow($viewer));
         }
 
         if ($viewer->isAdmin()) {
@@ -132,7 +134,7 @@ class Present
      */
     public static function assignable(): Collection
     {
-        return User::query()->where('is_active', true)
+        return User::query()->where('is_active', true)->where('role', '!=', Role::SuperAdmin)
             ->withCount([
                 'tasks as open_count' => fn ($q) => $q->actionable(),
                 'tasks as waiting_count' => fn ($q) => $q->waiting(),
@@ -148,7 +150,7 @@ class Present
     }
 
     /** @return array<string, mixed> */
-    public static function memberPayment(MemberPayment $p): array
+    public static function memberPayment(MemberPayment $p, ?User $viewer = null): array
     {
         return [
             'id' => $p->id,
@@ -161,14 +163,14 @@ class Present
             'reference' => $p->reference,
             'note' => $p->note,
             'paid_at' => $p->paid_at->toIso8601String(),
-            'paid_by' => $p->payer?->name,
-            'member' => $p->relationLoaded('user') ? $p->user?->name : null,
+            'paid_by' => $p->payer?->nameFor($viewer),
+            'member' => $p->relationLoaded('user') ? $p->user?->nameFor($viewer) : null,
             'task' => $p->relationLoaded('task') && $p->task ? ['id' => $p->task->id, 'name' => $p->task->name] : null,
         ];
     }
 
     /** @return array<string, mixed> */
-    public static function clientPayment(ClientPayment $p): array
+    public static function clientPayment(ClientPayment $p, ?User $viewer = null): array
     {
         return [
             'id' => $p->id,
@@ -181,7 +183,7 @@ class Present
             'reference' => $p->reference,
             'note' => $p->note,
             'paid_at' => $p->paid_at->toIso8601String(),
-            'recorded_by' => $p->recorder?->name,
+            'recorded_by' => $p->recorder?->nameFor($viewer),
             'project' => $p->relationLoaded('project') && $p->project ? ['id' => $p->project->id, 'name' => $p->project->name] : null,
         ];
     }

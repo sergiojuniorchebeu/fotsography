@@ -30,15 +30,15 @@ class EarningsController extends Controller
                 'penalty_debt' => $user->penaltyDebt(),
                 'refunded' => (int) $user->penaltyRefunds()->sum('amount'),
             ],
-            'payments' => $payments->map(fn ($p) => Present::memberPayment($p)),
+            'payments' => $payments->map(fn ($p) => Present::memberPayment($p, $user)),
             'penalties' => $user->penalties()->with(['task', 'canceller'])->latest('accrued_at')->get()->map(fn ($p) => [
-                ...$p->toRow(), 'task' => $p->task?->name, 'task_id' => $p->task_id,
+                ...$p->toRow($user), 'task' => $p->task?->name, 'task_id' => $p->task_id,
             ]),
             'settlements' => $user->penaltySettlements()->with('collector')->latest('settled_at')->get()->map(fn ($s) => [
                 'id' => $s->id, 'type_label' => $s->type === 'withheld' ? 'Retenue sur versement' : 'Paiement direct',
-                'amount' => $s->amount, 'note' => $s->note, 'collected_by' => $s->collector?->name, 'settled_at' => $s->settled_at->toIso8601String(),
+                'amount' => $s->amount, 'note' => $s->note, 'collected_by' => $s->collector?->nameFor($user), 'settled_at' => $s->settled_at->toIso8601String(),
             ]),
-            'refunds' => $user->penaltyRefunds()->with(['task', 'refunder'])->latest('refunded_at')->get()->map(fn ($r) => $r->toRow()),
+            'refunds' => $user->penaltyRefunds()->with(['task', 'refunder'])->latest('refunded_at')->get()->map(fn ($r) => $r->toRow($user)),
         ]);
     }
 }

@@ -31,7 +31,7 @@ class ProjectTemplateController extends Controller implements HasMiddleware
     {
         return Inertia::render('templates/index', [
             'templates' => ProjectTemplate::orderBy('name')->get()->map(fn (ProjectTemplate $t) => $t->toRow()),
-            'roles' => collect(Role::cases())->reject(fn ($r) => $r === Role::Assistant)->map(fn ($r) => ['value' => $r->value, 'label' => $r->label()])->values(),
+            'roles' => collect(Role::cases())->reject(fn ($r) => in_array($r, [Role::SuperAdmin, Role::Assistant], true))->map(fn ($r) => ['value' => $r->value, 'label' => $r->label()])->values(),
         ]);
     }
 

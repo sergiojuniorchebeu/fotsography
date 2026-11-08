@@ -34,7 +34,7 @@ class TemplateService
             'activities.*.tasks.*.key' => ['required', 'string', 'max:40'],
             'activities.*.tasks.*.name' => ['required', 'string', 'max:255'],
             'activities.*.tasks.*.instructions' => ['nullable', 'string', 'max:10000'],
-            'activities.*.tasks.*.role' => ['nullable', Rule::enum(Role::class)],
+            'activities.*.tasks.*.role' => ['nullable', Rule::in(array_column(Role::options(), 'value'))],
             'activities.*.tasks.*.from' => ['required', 'in:event,delivery'],
             'activities.*.tasks.*.days' => ['required', 'integer', 'between:0,365'],
             'activities.*.tasks.*.member_fee' => ['nullable', 'integer', 'min:0'],
@@ -96,14 +96,14 @@ class TemplateService
     public static function dueDate(array $task, Project $project): CarbonImmutable
     {
         if ($task['from'] === 'event' && $project->event_date) {
-            return CarbonImmutable::parse($project->event_date)->addDays($task['days']);
+            return $project->clampTaskDate(CarbonImmutable::parse($project->event_date)->addDays($task['days']));
         }
         if ($task['from'] === 'event') {
             // No event date yet: fall back to the usual delay before the delivery.
-            return CarbonImmutable::parse($project->delivery_date)->subDays(StudioSetting::current()->task_delivery_offset_days);
+            return $project->clampTaskDate(CarbonImmutable::parse($project->delivery_date)->subDays(StudioSetting::current()->task_delivery_offset_days));
         }
 
-        return CarbonImmutable::parse($project->delivery_date)->subDays($task['days']);
+        return $project->clampTaskDate(CarbonImmutable::parse($project->delivery_date)->subDays($task['days']));
     }
 
     /**
@@ -164,11 +164,13 @@ class TemplateService
         foreach ($tasks as $t) {
             $c = $choices[$t['key']] ?? [];
             $user = ! empty($c['assigned_to']) ? User::where('is_active', true)->find($c['assigned_to']) : null;
-            if (! $user) {
+            if (! $user || $user->isSuperAdmin()) {
                 $errors["rows.{$t['key']}.assigned_to"] = "Choisissez qui fait « {$t['name']} ».";
             }
             if (! empty($c['due_date']) && strtotime($c['due_date']) === false) {
                 $errors["rows.{$t['key']}.due_date"] = 'Date invalide.';
+            } elseif (! empty($c['due_date']) && ($c['due_date'] < $project->taskStartDate()->toDateString() || $c['due_date'] > $project->delivery_date->toDateString())) {
+                $errors["rows.{$t['key']}.due_date"] = 'Choisissez une date comprise dans la durée du projet ('.$project->taskStartDate()->format('d/m/Y').' – '.$project->delivery_date->format('d/m/Y').').';
             }
         }
         if ($errors) {

@@ -33,6 +33,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user ? [
                     ...$user->toPublic(),
                     'is_admin' => $user->isAdmin(),
+                    'is_super_admin' => $user->isSuperAdmin(),
                     'is_staff' => $user->isStaff(),
                     'must_change_password' => $user->must_change_password,
                 ] : null,

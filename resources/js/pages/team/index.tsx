@@ -1,6 +1,6 @@
 import { confirmDialog } from '@/components/confirm-dialog';
 import { router, useForm, usePage } from '@inertiajs/react';
-import { Check, Copy, KeyRound, MessageSquareText, Pencil, Plus, Power } from 'lucide-react';
+import { AlertTriangle, Check, Copy, KeyRound, Mail, MailCheck, MessageSquareText, Pencil, Plus, Power } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td, Th, copyText, formErrorBanner } from '@/components/ui';
 import AppLayout from '@/layouts/app-layout';
@@ -31,17 +31,18 @@ function MemberModal({ user, roles, onClose }: { user?: Row; roles: Option[]; on
                     <Input value={form.data.phone} onChange={(e) => form.setData('phone', e.target.value)} />
                 </Field>
                 <Field label="Rôle" error={form.errors.role} className="sm:col-span-2">
-                    <Select value={form.data.role} onChange={(e) => form.setData('role', e.target.value)}>
+                    <Select value={form.data.role} disabled={user?.role === 'super_admin'} onChange={(e) => form.setData('role', e.target.value)}>
+                        {user?.role === 'super_admin' && <option value="super_admin">Super Admin · Développeur</option>}
                         {roles.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </Select>
                 </Field>
-                {!user && <p className="text-xs text-stone-500 sm:col-span-2">Un mot de passe provisoire sera généré et affiché une seule fois, avec un bouton pour le copier. Le membre devra le changer à sa première connexion.</p>}
+                {!user && <p className="text-xs text-stone-500 sm:col-span-2">Un mot de passe provisoire sera généré, envoyé par email au membre et affiché une seule fois pour que vous puissiez aussi le copier. Le membre devra le changer à sa première connexion.</p>}
             </div>
         </Modal>
     );
 }
 
-type Credentials = { name: string; email: string; phone: string | null; password: string; new: boolean; login_url: string };
+type Credentials = { id: number; name: string; email: string; phone: string | null; password: string; new: boolean; login_url: string; mail_sent: boolean };
 
 function CopyButton({ text, label, variant = 'secondary' }: { text: string; label: string; variant?: 'primary' | 'secondary' }) {
     const [state, setState] = useState<'idle' | 'ok' | 'fail'>('idle');
@@ -60,6 +61,8 @@ function CopyButton({ text, label, variant = 'secondary' }: { text: string; labe
 
 /** Shown once, right after creating a member or resetting a password. */
 function CredentialsModal({ creds, onClose }: { creds: Credentials; onClose: () => void }) {
+    const [sending, setSending] = useState(false);
+    const resend = () => router.post(`/team/${creds.id}/send-access`, { password: creds.password }, { preserveScroll: true, onStart: () => setSending(true), onFinish: () => setSending(false) });
     const message = [
         `Bonjour ${creds.name},`,
         creds.new ? 'Votre compte Fotsography Studio est prêt.' : 'Votre mot de passe Fotsography Studio a été réinitialisé.',
@@ -71,6 +74,15 @@ function CredentialsModal({ creds, onClose }: { creds: Credentials; onClose: () 
     return (
         <Modal open onClose={onClose} size="sm" title={creds.new ? 'Compte créé' : 'Nouveau mot de passe'} description={<>Transmettez ces accès à <strong>{creds.name}</strong>. Le mot de passe ne sera plus affiché après fermeture.</>} footer={<Button onClick={onClose}>C'est noté</Button>}>
             <div className="space-y-4">
+                <div className={`flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm ring-1 ${creds.mail_sent ? 'bg-emerald-50 text-emerald-900 ring-emerald-100' : 'bg-amber-50 text-amber-900 ring-amber-100'}`}>
+                    {creds.mail_sent ? <MailCheck className="mt-0.5 size-4 shrink-0" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
+                    <p className="min-w-0 flex-1">
+                        {creds.mail_sent ? <>Email envoyé à <strong className="break-all">{creds.email}</strong>. Si rien n'arrive, pensez au dossier spam.</> : <>L'email n'a pas pu partir. Copiez le message ci-dessous et envoyez-le par WhatsApp, ou réessayez.</>}
+                    </p>
+                    <button type="button" onClick={resend} disabled={sending} className="inline-flex shrink-0 items-center gap-1 text-xs font-medium underline disabled:opacity-50">
+                        <Mail className="size-3.5" />{sending ? 'Envoi…' : creds.mail_sent ? 'Renvoyer' : 'Réessayer'}
+                    </button>
+                </div>
                 <div>
                     <p className="mb-1 text-xs font-medium text-stone-500">Identifiant</p>
                     <p className="text-sm text-stone-800">{creds.email} <span className="text-stone-400">(ou « {creds.name} »)</span></p>
@@ -116,7 +128,7 @@ export default function Team({ users, roles }: { users: Row[]; roles: Option[] }
                                 </Td>
                                 <Td>
                                     <span className="flex flex-wrap gap-1">
-                                        <Badge tone={u.role === 'admin' ? 'violet' : u.role === 'assistant' ? 'blue' : 'stone'}>{u.role_label}</Badge>
+                                        <Badge tone={u.role === 'super_admin' ? 'amber' : u.role === 'admin' ? 'violet' : u.role === 'assistant' ? 'blue' : 'stone'}>{u.role_label}</Badge>
                                         {!u.is_active && <Badge tone="red">Désactivé</Badge>}
                                         {u.must_change_password && <Badge tone="amber">Mot de passe provisoire</Badge>}
                                     </span>
@@ -126,13 +138,15 @@ export default function Team({ users, roles }: { users: Row[]; roles: Option[] }
                                 <Td className="text-stone-500">{u.last_login_at ? relative(u.last_login_at) : 'Jamais'}</Td>
                                 <Td>
                                     <span className="flex justify-end gap-1">
+                                        {(u.role !== 'super_admin' || me.is_super_admin) && <>
                                         <Button size="sm" variant="ghost" title="Modifier" onClick={() => setModal({ user: u })}><Pencil className="size-3.5" /></Button>
-                                        <Button size="sm" variant="ghost" title="Réinitialiser le mot de passe" onClick={() => void confirmDialog({ title: 'Réinitialiser le mot de passe', tone: 'primary', confirmLabel: 'Générer un mot de passe', message: <>Un nouveau mot de passe provisoire sera créé pour <strong>{u.name}</strong> et affiché une seule fois. Son mot de passe actuel ne fonctionnera plus et il devra en choisir un nouveau à sa prochaine connexion.</>, request: { method: 'post', url: `/team/${u.id}/reset-password` } })}><KeyRound className="size-3.5" /></Button>
+                                        <Button size="sm" variant="ghost" title="Réinitialiser le mot de passe" onClick={() => void confirmDialog({ title: 'Réinitialiser le mot de passe', tone: 'primary', confirmLabel: 'Générer un mot de passe', message: <>Un nouveau mot de passe provisoire sera créé pour <strong>{u.name}</strong>, envoyé à {u.email} et affiché une seule fois. Son mot de passe actuel ne fonctionnera plus : un nouveau sera à choisir à la prochaine connexion.</>, request: { method: 'post', url: `/team/${u.id}/reset-password` } })}><KeyRound className="size-3.5" /></Button>
                                         {u.id !== me.id && (
                                             <Button size="sm" variant="ghost" title={u.is_active ? 'Désactiver' : 'Réactiver'} onClick={() => void confirmDialog(u.is_active ? { title: 'Désactiver le compte', confirmLabel: 'Désactiver', message: <><strong>{u.name}</strong> ne pourra plus se connecter. Ses tâches, paiements et pénalités restent dans l'historique. Vous pourrez réactiver le compte à tout moment.</>, request: { method: 'post', url: `/team/${u.id}/toggle` } } : { title: 'Réactiver le compte', tone: 'primary', confirmLabel: 'Réactiver', message: <><strong>{u.name}</strong> pourra de nouveau se connecter.</>, request: { method: 'post', url: `/team/${u.id}/toggle` } })}>
                                                 <Power className={`size-3.5 ${u.is_active ? 'text-red-600' : 'text-emerald-600'}`} />
                                             </Button>
                                         )}
+                                        </>}
                                     </span>
                                 </Td>
                             </tr>
