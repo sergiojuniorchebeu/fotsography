@@ -20,7 +20,7 @@ class AuthController extends Controller
 {
     public function showLogin(): Response|RedirectResponse
     {
-        if (! User::withTrashed()->exists()) {
+        if (! self::nonSuperAdminAccountExists()) {
             return redirect('/register');
         }
 
@@ -64,7 +64,7 @@ class AuthController extends Controller
 
     public function showRegister(): Response|RedirectResponse
     {
-        if (User::withTrashed()->exists()) {
+        if (self::nonSuperAdminAccountExists()) {
             return redirect('/login');
         }
 
@@ -73,7 +73,7 @@ class AuthController extends Controller
 
     public function register(Request $request): RedirectResponse
     {
-        abort_if(User::withTrashed()->exists(), 403, 'L\'inscription est fermée.');
+        abort_if(self::nonSuperAdminAccountExists(), 403, 'L\'inscription est fermée.');
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:users,name'],
@@ -88,6 +88,11 @@ class AuthController extends Controller
         ActivityLog::record('created', 'Compte administrateur initial créé', $user);
 
         return redirect('/')->with('success', 'Bienvenue ! Vous êtes l\'administrateur du studio.');
+    }
+
+    private static function nonSuperAdminAccountExists(): bool
+    {
+        return User::withTrashed()->where('role', '!=', Role::SuperAdmin)->exists();
     }
 
     public function logout(Request $request): RedirectResponse
