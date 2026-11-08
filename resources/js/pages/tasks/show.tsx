@@ -281,7 +281,7 @@ export default function TaskShow({ task, methods, penaltyDebt, members, siblings
                     <>
                         {task.status === 'done' && <Badge tone="green"><Lock className="size-3" />Verrouillée</Badge>}
                         {user.is_staff && (user.is_admin || task.status !== 'done') && <Button variant="secondary" onClick={() => setEdit(true)}><Pencil className="size-4" />Modifier</Button>}
-                        {user.is_admin && task.assignee && (task.remaining_fee ?? 0) > 0 && <Button onClick={() => setPay(Date.now())}><Wallet className="size-4" />Payer le membre</Button>}
+                        {user.is_admin && task.status === 'done' && task.assignee && (task.remaining_fee ?? 0) > 0 && <Button onClick={() => setPay(Date.now())}><Wallet className="size-4" />Payer le membre</Button>}
                     </>
                 }
             />
@@ -338,7 +338,7 @@ export default function TaskShow({ task, methods, penaltyDebt, members, siblings
                     {showMoney && (
                         <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
                             <Stat label="Rémunération" value={fcfa(task.member_fee)} hint={user.is_admin && task.client_share ? `Sur la facture client : ${fcfa(task.client_share)}` : undefined} />
-                            <Stat label="Déjà versé (brut)" value={fcfa(task.paid_gross)} hint={`Reste dû : ${fcfa(task.remaining_fee)}`} tone={task.remaining_fee ? 'warning' : 'positive'} />
+                            <Stat label="Déjà versé (brut)" value={fcfa(task.paid_gross)} hint={task.status === 'done' ? `Reste brut à payer : ${fcfa(task.remaining_fee)}` : `Après validation : ${fcfa(task.remaining_fee)} brut`} tone={task.remaining_fee ? 'warning' : 'positive'} />
                         </div>
                     )}
 

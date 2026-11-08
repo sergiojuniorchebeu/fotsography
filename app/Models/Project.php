@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ClientPaymentType;
 use App\Enums\ProjectStatus;
+use App\Enums\TaskStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -124,6 +125,7 @@ class Project extends Model
         $paid = $this->paidAmount();
         $expenses = (int) $this->expenses()->sum('amount');
         $fees = (int) $this->memberPayments()->sum('net_amount');
+        $feesDue = max(0, (int) $this->tasks()->where('status', TaskStatus::Done)->sum('member_fee') - (int) $this->memberPayments()->sum('gross_amount'));
         $refunds = (int) $this->penaltyRefunds()->sum('amount');
 
         return [
@@ -132,6 +134,7 @@ class Project extends Model
             'remaining' => max(0, $this->total_amount - $paid),
             'expenses' => $expenses,
             'fees_paid' => $fees,
+            'fees_due' => $feesDue,
             'refunds' => $refunds,
             'fees_planned' => (int) $this->tasks()->sum('member_fee'),
             'client_shares' => (int) $this->tasks()->sum('client_share'),

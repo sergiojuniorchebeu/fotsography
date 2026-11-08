@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\ClientPaymentType;
 use App\Enums\ProjectStatus;
+use App\Enums\TaskStatus;
 use App\Models\ActivityLog;
 use App\Models\ClientPayment;
 use App\Models\Invoice;
@@ -89,6 +90,9 @@ class PaymentService
             $task = Task::whereKey($task->id)->lockForUpdate()->firstOrFail();
             $member = $task->assignee;
 
+            if ($task->status !== TaskStatus::Done) {
+                throw ValidationException::withMessages(['amount' => 'La rémunération devient payable après la validation de la tâche.']);
+            }
             if (! $member || $member->isAdmin()) {
                 throw ValidationException::withMessages(['amount' => 'Cette tâche n\'a pas de rémunération à verser.']);
             }

@@ -143,8 +143,8 @@ class TaskController extends Controller
         });
 
         ActivityLog::record('created', "Tâche « {$task->name} » créée et assignée à ".($task->assignee?->name ?? 'personne'), $task);
-        if ($task->assignee && $task->assigned_to !== $viewer->id) {
-            $this->notifyAssigned($task);
+        if ($task->assignee) {
+            $this->notifyAssigned($task, true);
         }
 
         return back()->with('success', 'Tâche créée.');
@@ -261,7 +261,7 @@ class TaskController extends Controller
             TaskReview::create(['task_id' => $task->id, 'user_id' => $viewer->id, 'action' => 'submitted', 'proof_url' => $data['proof_url'] ?? null, 'comment' => $data['proof_note'] ?? null]);
         });
         ActivityLog::record('updated', "Travail livré pour vérification : « {$task->name} »", $task);
-        Notifier::admins('task_submitted', 'Travail à vérifier',
+        Notifier::adminsNow('task_submitted', 'Travail à vérifier',
             "{$viewer->name} a livré « {$task->name} » ({$task->project->name}).", "/tasks/{$task->id}", $viewer);
 
         return back()->with('success', 'Travail livré : l\'administrateur va le vérifier.');
@@ -278,6 +278,8 @@ class TaskController extends Controller
             TaskReview::create(['task_id' => $task->id, 'user_id' => $request->user()->id, 'action' => 'validated', 'comment' => $data['comment'] ?? null]);
         });
         ActivityLog::record('updated', "Tâche « {$task->name} » validée", $task);
+        $task->loadMissing('assignee');
+        $hasPayableFee = $task->assignee && ! $task->assignee->isAdmin() && $task->remainingFee() > 0;
         Notifier::send($task->assignee, 'task_validated', 'Tâche validée ✅', "« {$task->name} » a été validée.", "/tasks/{$task->id}");
 
         // The next steps can start now: their late clock starts today, not from a past due date.
@@ -288,7 +290,9 @@ class TaskController extends Controller
                 "« {$task->name} » est validée : « {$next->name} » peut démarrer (à livrer le {$next->due_date->format('d/m/Y')}).", "/tasks/{$next->id}");
         });
 
-        return back()->with('success', 'Tâche validée et verrouillée.');
+        return back()->with('success', $hasPayableFee
+            ? 'Tâche validée. La rémunération est maintenant à payer.'
+            : 'Tâche validée et verrouillée.');
     }
 
     public function returnTask(Request $request, Task $task): RedirectResponse
@@ -390,11 +394,12 @@ class TaskController extends Controller
         return $dep->id;
     }
 
-    private function notifyAssigned(Task $task): void
+    private function notifyAssigned(Task $task, bool $immediate = false): void
     {
         $task->loadMissing(['project', 'dependency']);
         $wait = $task->isWaiting() ? " Elle démarrera après « {$task->dependency->name} » : vous serez prévenu." : '';
-        Notifier::send($task->assignee, 'task_assigned', 'Nouvelle tâche assignée',
+        $send = $immediate ? [Notifier::class, 'sendNow'] : [Notifier::class, 'send'];
+        $send($task->assignee, 'task_assigned', 'Nouvelle tâche assignée',
             "« {$task->name} » ({$task->project->name}) — à livrer le {$task->due_date->format('d/m/Y')}.$wait", "/tasks/{$task->id}");
     }
 

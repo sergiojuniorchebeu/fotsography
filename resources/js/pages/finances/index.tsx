@@ -6,7 +6,7 @@ import AppLayout from '@/layouts/app-layout';
 import { date, dateTime, fcfa } from '@/lib/format';
 import type { ClientPayment, FinanceSummary, MemberPayment, MemberStat, MonthPoint } from '@/types';
 
-type ProjectRow = { id: number; name: string; client: string | null; status: string; status_label: string; delivery_date: string; revenue: number; collected: number; remaining: number; expenses: number; fees_planned: number; fees_paid: number; margin: number };
+type ProjectRow = { id: number; name: string; client: string | null; status: string; status_label: string; delivery_date: string; revenue: number; collected: number; remaining: number; expenses: number; fees_planned: number; fees_paid: number; fees_due: number; margin: number };
 
 const exports = [
     ['projets', 'Projets'],
@@ -34,9 +34,10 @@ export default function Finances({ summary: s, projects, monthly, members, recen
                 <Stat label="Reste à encaisser" value={fcfa(s.remaining)} tone={s.remaining ? 'warning' : undefined} />
                 <Stat label="Marge nette" value={fcfa(s.margin)} tone={s.margin >= 0 ? 'positive' : 'negative'} />
             </div>
-            <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
                 <Stat label="Dépenses" value={fcfa(s.expenses)} />
                 <Stat label="Rémunérations versées" value={fcfa(s.fees_paid)} hint="Montants nets" />
+                <Stat label="Rémunérations à payer" value={fcfa(s.fees_due)} tone={s.fees_due ? 'warning' : undefined} hint="Tâches validées, avant retenues" />
                 <Stat label="Pénalités retenues" value={fcfa(s.withheld)} />
                 <Stat label="Pénalités réglées (net)" value={fcfa(s.penalties_collected)} hint={s.penalty_refunds ? `Retenues + paiements directs − ${fcfa(s.penalty_refunds)} remboursés` : 'Retenues + paiements directs'} />
             </div>
@@ -54,7 +55,7 @@ export default function Finances({ summary: s, projects, monthly, members, recen
             <Card title="Par projet" className="mb-6">
                 <Table>
                     <thead>
-                        <tr><Th>Projet</Th><Th>Statut</Th><Th className="text-right">CA</Th><Th className="text-right">Encaissé</Th><Th className="text-right">Reste</Th><Th className="text-right">Dépenses</Th><Th className="text-right">Rému. versées</Th><Th className="text-right">Marge</Th></tr>
+                        <tr><Th>Projet</Th><Th>Statut</Th><Th className="text-right">CA</Th><Th className="text-right">Encaissé</Th><Th className="text-right">Reste</Th><Th className="text-right">Dépenses</Th><Th className="text-right">Rému. versées</Th><Th className="text-right">Rému. à payer</Th><Th className="text-right">Marge</Th></tr>
                     </thead>
                     <tbody>
                         {projects.map((p) => (
@@ -66,6 +67,7 @@ export default function Finances({ summary: s, projects, monthly, members, recen
                                 <Td className="tabular text-right">{fcfa(p.remaining)}</Td>
                                 <Td className="tabular text-right">{fcfa(p.expenses)}</Td>
                                 <Td className="tabular text-right">{fcfa(p.fees_paid)}<p className="text-xs text-stone-400">/ {fcfa(p.fees_planned)}</p></Td>
+                                <Td className="tabular text-right">{fcfa(p.fees_due)}</Td>
                                 <Td className={`tabular text-right font-semibold ${p.margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fcfa(p.margin)}</Td>
                             </tr>
                         ))}
@@ -76,7 +78,7 @@ export default function Finances({ summary: s, projects, monthly, members, recen
             <Card title="Par membre" className="mb-6">
                 <Table>
                     <thead>
-                        <tr><Th>Membre</Th><Th className="text-right">Tâches</Th><Th className="text-right">Terminées</Th><Th className="text-right">En retard</Th><Th className="text-right">Rémunération</Th><Th className="text-right">Versé net</Th><Th className="text-right">Reste dû</Th><Th className="text-right">Pénalités</Th><Th className="text-right">Doit</Th></tr>
+                        <tr><Th>Membre</Th><Th className="text-right">Tâches</Th><Th className="text-right">Terminées</Th><Th className="text-right">En retard</Th><Th className="text-right">Rémunération prévue</Th><Th className="text-right">Versé net</Th><Th className="text-right">Brut à payer</Th><Th className="text-right">Pénalités</Th><Th className="text-right">Doit</Th></tr>
                     </thead>
                     <tbody>
                         {members.map((m) => (

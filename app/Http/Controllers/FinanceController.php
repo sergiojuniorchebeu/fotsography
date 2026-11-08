@@ -35,8 +35,8 @@ class FinanceController extends Controller
         $viewer = $request->user();
         [$headers, $rows] = match ($type) {
             'projets' => [
-                ['ID', 'Projet', 'Client', 'Statut', 'Livraison', 'Chiffre d\'affaires', 'Encaissé', 'Reste à encaisser', 'Dépenses', 'Rémunérations prévues', 'Rémunérations versées', 'Remboursements pénalités', 'Marge nette'],
-                FinanceService::projects()->map(fn ($p) => [$p['id'], $p['name'], $p['client'], $p['status_label'], $p['delivery_date'], $p['revenue'], $p['collected'], $p['remaining'], $p['expenses'], $p['fees_planned'], $p['fees_paid'], $p['refunds'], $p['margin']]),
+                ['ID', 'Projet', 'Client', 'Statut', 'Livraison', 'Chiffre d\'affaires', 'Encaissé', 'Reste à encaisser', 'Dépenses', 'Rémunérations prévues', 'Rémunérations versées', 'Rémunérations à payer', 'Remboursements pénalités', 'Marge nette'],
+                FinanceService::projects()->map(fn ($p) => [$p['id'], $p['name'], $p['client'], $p['status_label'], $p['delivery_date'], $p['revenue'], $p['collected'], $p['remaining'], $p['expenses'], $p['fees_planned'], $p['fees_paid'], $p['fees_due'], $p['refunds'], $p['margin']]),
             ],
             'encaissements' => [
                 ['Reçu', 'Date', 'Projet', 'Client', 'Tranche', 'Montant', 'Moyen', 'Référence', 'Note', 'Enregistré par'],
@@ -60,7 +60,7 @@ class FinanceController extends Controller
                     ->concat(PenaltySettlement::with(['user', 'collector'])->orderBy('settled_at')->get()->map(fn ($s) => [$s->settled_at->format('Y-m-d H:i'), $s->user?->nameFor($viewer), $s->type === 'withheld' ? 'Retenue sur versement' : 'Paiement direct', '', '', -$s->amount, $s->collector?->nameFor($viewer), $s->note])),
             ],
             'membres' => [
-                ['Membre', 'Rôle', 'Tâches', 'Terminées', 'En retard', 'Pénalisées', 'Rémunération totale', 'Versé brut', 'Versé net', 'Reste dû', 'Pénalités', 'Pénalités dues'],
+                ['Membre', 'Rôle', 'Tâches', 'Terminées', 'En retard', 'Pénalisées', 'Rémunération totale prévue', 'Versé brut', 'Versé net', 'Reste à payer sur tâches validées', 'Pénalités', 'Pénalités dues'],
                 FinanceService::members()->map(fn ($m) => [$m['name'], $m['role_label'], $m['tasks'], $m['done'], $m['late'], $m['penalized'], $m['fees_total'], $m['gross_paid'], $m['net_paid'], $m['remaining'], $m['penalties'], $m['penalty_debt']]),
             ],
             default => abort(404),

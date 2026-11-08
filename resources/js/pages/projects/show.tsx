@@ -12,7 +12,7 @@ import { date, dateTime, fcfa } from '@/lib/format';
 import type { Activity, ClientPayment, Expense, Member, MemberPayment, Option, Project, SiblingTask, Task, TemplatePreview } from '@/types';
 
 type PlanRow = { type: string; label: string; amount: number; paid: boolean };
-type Financials = { revenue: number; collected: number; remaining: number; expenses: number; fees_paid: number; fees_planned: number; client_shares: number; refunds: number; margin: number };
+type Financials = { revenue: number; collected: number; remaining: number; expenses: number; fees_paid: number; fees_due: number; fees_planned: number; client_shares: number; refunds: number; margin: number };
 
 type Props = {
     project: Project;
@@ -374,12 +374,13 @@ export default function ProjectShow(props: Props) {
             />
 
             {admin && f && (
-                <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
+                <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 2xl:grid-cols-7">
                     <Stat label="Montant" value={fcfa(f.revenue)} />
                     <Stat label="Encaissé" value={fcfa(f.collected)} tone="positive" />
                     <Stat label="Reste à encaisser" value={fcfa(f.remaining)} tone={f.remaining ? 'warning' : undefined} />
                     <Stat label="Dépenses" value={fcfa(f.expenses)} />
                     <Stat label="Rému. versées" value={fcfa(f.fees_paid)} hint={`Prévues : ${fcfa(f.fees_planned)}${f.refunds ? ` · + ${fcfa(f.refunds)} remb. pénalités` : ''}`} />
+                    <Stat label="Rému. à payer" value={fcfa(f.fees_due)} hint="Tâches validées, avant retenues" tone={f.fees_due ? 'warning' : undefined} />
                     <Stat label="Marge nette" value={fcfa(f.margin)} tone={f.margin >= 0 ? 'positive' : 'negative'} />
                 </div>
             )}

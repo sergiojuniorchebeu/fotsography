@@ -21,7 +21,7 @@ export default function Earnings({ summary: s, payments, penalties, settlements,
             <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Stat label="Rémunération totale" value={fcfa(s.fees_total)} hint="Toutes mes tâches" />
                 <Stat label="Reçu (net)" value={fcfa(s.net_paid)} tone="positive" hint={`Brut ${fcfa(s.gross_paid)} · retenu ${fcfa(s.withheld)}`} />
-                <Stat label="Reste à recevoir" value={fcfa(s.remaining)} tone={s.remaining ? 'warning' : undefined} />
+                <Stat label="À verser (brut)" value={fcfa(s.remaining)} tone={s.remaining ? 'warning' : undefined} hint="Tâches validées, avant retenues" />
                 <Stat label="Pénalités dues" value={fcfa(s.penalty_debt)} tone={s.penalty_debt ? 'negative' : undefined} hint={`Total compté : ${fcfa(s.penalties_total)}`} />
             </div>
             <div className="grid gap-6 lg:grid-cols-3">

@@ -201,7 +201,7 @@ function StaffDashboard(props: StaffProps) {
                                     <Th className="text-right">Terminées</Th>
                                     <Th className="text-right">En retard</Th>
                                     <Th className="text-right">Versé (net)</Th>
-                                    <Th className="text-right">Reste dû</Th>
+                                        <Th className="text-right">À payer</Th>
                                     <Th className="text-right">Pénalités dues</Th>
                                 </tr>
                             </thead>

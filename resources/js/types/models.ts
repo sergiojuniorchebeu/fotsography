@@ -142,6 +142,7 @@ export type FinanceSummary = {
     remaining: number;
     expenses: number;
     fees_paid: number;
+    fees_due: number;
     withheld: number;
     penalties_collected: number;
     penalty_refunds: number;

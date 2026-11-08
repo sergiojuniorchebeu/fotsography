@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Task;
+use App\Enums\TaskStatus;
 use App\Services\PenaltyService;
 use App\Support\Present;
 use Illuminate\Http\Request;
@@ -25,7 +26,7 @@ class EarningsController extends Controller
                 'gross_paid' => (int) $payments->sum('gross_amount'),
                 'net_paid' => (int) $payments->sum('net_amount'),
                 'withheld' => (int) $payments->sum('penalty_deducted'),
-                'remaining' => (int) $tasks->sum(fn ($t) => $t->remainingFee()),
+                'remaining' => (int) $tasks->where('status', TaskStatus::Done)->sum(fn ($t) => $t->remainingFee()),
                 'penalties_total' => (int) $user->activePenalties()->sum('amount'),
                 'penalty_debt' => $user->penaltyDebt(),
                 'refunded' => (int) $user->penaltyRefunds()->sum('amount'),

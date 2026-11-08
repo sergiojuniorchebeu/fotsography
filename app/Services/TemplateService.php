@@ -231,10 +231,10 @@ class TemplateService
         });
 
         foreach ($created as $task) {
-            if ($task->assigned_to !== $by->id) {
+            if ($task->assignee) {
                 $task->load(['assignee', 'project', 'dependency']);
                 $wait = $task->isWaiting() ? " Elle démarrera après « {$task->dependency->name} » : vous serez prévenu." : '';
-                Notifier::send($task->assignee, 'task_assigned', 'Nouvelle tâche assignée',
+                Notifier::sendNow($task->assignee, 'task_assigned', 'Nouvelle tâche assignée',
                     "« {$task->name} » ({$project->name}) — à livrer le {$task->due_date->format('d/m/Y')}.$wait", "/tasks/{$task->id}");
             }
         }

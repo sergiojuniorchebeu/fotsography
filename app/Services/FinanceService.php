@@ -4,12 +4,14 @@ namespace App\Services;
 
 use App\Enums\ProjectStatus;
 use App\Enums\Role;
+use App\Enums\TaskStatus;
 use App\Models\ClientPayment;
 use App\Models\Expense;
 use App\Models\MemberPayment;
 use App\Models\PenaltyRefund;
 use App\Models\PenaltySettlement;
 use App\Models\Project;
+use App\Models\Task;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -26,6 +28,7 @@ class FinanceService
         $collected = (int) ClientPayment::sum('amount');
         $expenses = (int) Expense::sum('amount');
         $fees = (int) MemberPayment::sum('net_amount');
+        $feesDue = max(0, (int) Task::where('status', TaskStatus::Done)->sum('member_fee') - (int) MemberPayment::sum('gross_amount'));
         $refunds = (int) PenaltyRefund::sum('amount');
 
         return [
@@ -34,6 +37,7 @@ class FinanceService
             'remaining' => (int) $projects->sum(fn ($p) => max(0, $p->total_amount - (int) $p->payments_sum_amount)),
             'expenses' => $expenses,
             'fees_paid' => $fees,
+            'fees_due' => $feesDue,
             'withheld' => (int) MemberPayment::sum('penalty_deducted'),
             'penalties_collected' => (int) PenaltySettlement::sum('amount') - $refunds,
             'penalty_refunds' => $refunds,
@@ -48,13 +52,16 @@ class FinanceService
             ->withSum('payments', 'amount')
             ->withSum('expenses', 'amount')
             ->withSum('memberPayments', 'net_amount')
+            ->withSum('memberPayments as member_payments_sum_gross_amount', 'gross_amount')
             ->withSum('tasks', 'member_fee')
+            ->withSum(['tasks as tasks_validated_fee_sum' => fn ($q) => $q->where('status', TaskStatus::Done)], 'member_fee')
             ->withSum('penaltyRefunds', 'amount')
             ->orderByDesc('delivery_date')->get()
             ->map(function (Project $p) {
                 $collected = (int) $p->payments_sum_amount;
                 $expenses = (int) $p->expenses_sum_amount;
                 $fees = (int) $p->member_payments_sum_net_amount;
+                $feesDue = max(0, (int) $p->tasks_validated_fee_sum - (int) $p->member_payments_sum_gross_amount);
                 $refunds = (int) $p->penalty_refunds_sum_amount;
 
                 return [
@@ -70,6 +77,7 @@ class FinanceService
                     'expenses' => $expenses,
                     'fees_planned' => (int) $p->tasks_sum_member_fee,
                     'fees_paid' => $fees,
+                    'fees_due' => $feesDue,
                     'refunds' => $refunds,
                     'margin' => $collected - $expenses - $fees - $refunds,
                 ];
@@ -116,6 +124,7 @@ class FinanceService
                 'tasks as tasks_penalized_count' => fn ($q) => $q->where('penalty_periods', '>', 0),
             ])
             ->withSum('tasks', 'member_fee')
+            ->withSum(['tasks as tasks_validated_fee_sum' => fn ($q) => $q->where('status', TaskStatus::Done)], 'member_fee')
             ->withSum('memberPayments', 'gross_amount')
             ->withSum('memberPayments', 'net_amount')
             ->withSum('activePenalties as penalties_sum_amount', 'amount')
@@ -135,7 +144,7 @@ class FinanceService
                 'fees_total' => (int) $u->tasks_sum_member_fee,
                 'gross_paid' => (int) $u->member_payments_sum_gross_amount,
                 'net_paid' => (int) $u->member_payments_sum_net_amount,
-                'remaining' => max(0, (int) $u->tasks_sum_member_fee - (int) $u->member_payments_sum_gross_amount),
+                'remaining' => max(0, (int) $u->tasks_validated_fee_sum - (int) $u->member_payments_sum_gross_amount),
                 'penalties' => (int) $u->penalties_sum_amount,
                 'penalty_debt' => (int) $u->penalties_sum_amount - (int) $u->penalty_settlements_sum_amount + (int) $u->penalty_refunds_sum_amount,
             ])->values();
